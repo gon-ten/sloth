@@ -1,0 +1,10 @@
+import { useState } from 'preact/hooks'
+
+# Test
+
+export function Code() {
+    const [test, setTest] = useState(0)
+    return <div class={test % 2 === 0 ? "text-teal-200" : "text-yellow-200"} onClick={() => setTest(prev => prev + 1)}>Test</div>
+}
+
+<Code />
