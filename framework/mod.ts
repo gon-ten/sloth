@@ -10,6 +10,59 @@ import { Context } from "./context.ts";
 import { basename, extname, fromFileUrl, resolve, toFileUrl } from "@std/path";
 import { contentType } from "@std/media-types";
 import { toReadableStream } from "@std/io";
+import { route } from "@std/http";
+
+function createRoutes(context: Context) {
+  return route(
+    [
+      {
+        method: "GET",
+        pattern: new URLPattern({ pathname: "/favicon.ico" }),
+        handler: notFound,
+      },
+      {
+        method: "GET",
+        pattern: new URLPattern({ pathname: "/static/*" }),
+        handler(req) {
+          return serveStatic(context, req);
+        },
+      },
+      {
+        method: "GET",
+        pattern: new URLPattern({ pathname: "/posts/:id" }),
+        async handler(_req, _info, params) {
+          if (!params?.pathname.groups.id) {
+            return notFound();
+          }
+
+          const result = await renderPost(context, params.pathname.groups.id);
+
+          if (!result.ok) {
+            return notFound();
+          }
+
+          return new Response(result.content, {
+            status: 200,
+            statusText: "OK",
+            headers: {
+              "content-type": "text/html",
+            },
+          });
+        },
+      },
+    ],
+    async () => {
+      const html = await render(context);
+      return new Response(html, {
+        status: 200,
+        statusText: "OK",
+        headers: {
+          "content-type": "text/html",
+        },
+      });
+    }
+  );
+}
 
 const textEncoder = new TextEncoder();
 const __dirname = fromFileUrl(new URL(".", import.meta.url));
@@ -96,52 +149,7 @@ async function serveStatic(context: Context, req: Request): Promise<Response> {
 export async function start(manifest: Manifest) {
   const context = new Context(manifest);
   await bundleApp(context);
-  initServer(async (req) => {
-    const url = new URL(req.url);
-
-    if (url.pathname.startsWith("/static")) {
-      return serveStatic(context, req);
-    }
-
-    if (url.pathname === "/favicon.ico") {
-      return notFound();
-    }
-
-    if (url.pathname.startsWith("/posts")) {
-      const [, postName] = url.pathname.slice("/posts".length).split("/");
-
-      const result = await renderPost(context, postName);
-
-      if (!result.ok) {
-        return notFound();
-      }
-
-      return new Response(result.content, {
-        status: 200,
-        statusText: "OK",
-        headers: {
-          "content-type": "text/html",
-        },
-      });
-    }
-
-    const html = await render(context);
-
-    return new Response(html, {
-      status: 200,
-      statusText: "OK",
-      headers: {
-        "content-type": "text/html",
-      },
-    });
-  });
-}
-
-class HttpResponseError extends Error {
-  public readonly name = "HttpResponseError";
-  constructor(public readonly cause: unknown) {
-    super();
-  }
+  initServer(context);
 }
 
 async function bundleAppRoot(context: Context) {
@@ -319,7 +327,7 @@ async function bundle({
   return outputFiles.map(({ path }) => path);
 }
 
-function initServer(handler: (req: Request) => Response | Promise<Response>) {
+function initServer(context: Context) {
   const onListen: Deno.ServeOptions["onListen"] = (addr) => {
     const fullAddr = colors.cyan(`http://localhost:${addr.port}`);
     console.log(`\n\t🦥 Sloth Server running at ${fullAddr}\n`);
@@ -337,12 +345,6 @@ function initServer(handler: (req: Request) => Response | Promise<Response>) {
       onListen,
       onError,
     },
-    (req) => {
-      try {
-        return handler(req);
-      } catch (cause) {
-        throw new HttpResponseError(cause);
-      }
-    }
+    createRoutes(context)
   );
 }

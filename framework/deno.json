@@ -13,6 +13,7 @@
     "@std/dotenv": "jsr:@std/dotenv@^0.225.1",
     "@std/fmt": "jsr:@std/fmt@^1.0.1",
     "@std/fs": "jsr:@std/fs@^1.0.2",
+    "@std/http": "jsr:@std/http@^1.0.4",
     "@std/io": "jsr:@std/io@^0.224.6",
     "@std/media-types": "jsr:@std/media-types@^1.0.3",
     "@std/path": "jsr:@std/path@^1.0.3",
@@ -21,7 +22,9 @@
     "preact-render-to-string": "https://esm.sh/preact-render-to-string@6.5.9?deps=preact@10.23.2&bundle-deps",
     "preact/": "https://esm.sh/preact@10.23.2/",
     "rehype-highlight": "https://esm.sh/rehype-highlight@7.0.0",
-    "tailwindcss": "npm:tailwindcss@^3.4.1"
+    "tailwindcss": "npm:tailwindcss@^3.4.1",
+    "@luca/esbuild-deno-loader": "jsr:@luca/esbuild-deno-loader",
+    "esbuild": "https://deno.land/x/esbuild@v0.23.1/wasm.js"
   },
   "compilerOptions": {
     "jsx": "react-jsx",
