@@ -12,8 +12,8 @@ const GoHome = () => {
   return <div onClick={() => location.route("/home")}>Go Home</div>;
 };
 
-const Home = lazy(() => import("./routes/Home.tsx"));
-const About = lazy(() => import("./routes/About.tsx"));
+const Home = lazy(() => import("./routes/home.tsx"));
+const About = lazy(() => import("./routes/about.tsx"));
 
 export default function Root() {
   return (

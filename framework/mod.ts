@@ -1,67 +1,70 @@
 import { compile } from "@mdx-js/mdx";
 import rehypeHighlight from "rehype-highlight";
 import { walk, exists } from "@std/fs";
-import type { Manifest } from "./types.ts";
+import {
+  type HttpMethod,
+  httpMethods,
+  type Manifest,
+  type RouteHandler,
+  type RouteModule,
+} from "./types.ts";
 import { render, renderPost } from "./ssr.tsx";
 import * as colors from "@std/fmt/colors";
 import * as esbuild from "https://deno.land/x/esbuild@v0.23.1/wasm.js";
 import { denoPlugins } from "jsr:@luca/esbuild-deno-loader@^0.10.3";
 import { Context } from "./context.ts";
-import { basename, extname, fromFileUrl, resolve, toFileUrl } from "@std/path";
+import {
+  basename,
+  extname,
+  fromFileUrl,
+  relative,
+  resolve,
+  toFileUrl,
+} from "@std/path";
 import { contentType } from "@std/media-types";
 import { toReadableStream } from "@std/io";
-import { route } from "@std/http";
+import { route, type Route } from "@std/http";
 
-function createRoutes(context: Context) {
-  return route(
-    [
-      {
-        method: "GET",
-        pattern: new URLPattern({ pathname: "/favicon.ico" }),
-        handler: notFound,
+export { type RouteHandlers, type RouteHandler } from "./types.ts";
+
+function createRoutes(context: Context): Route[] {
+  return [
+    {
+      method: "GET",
+      pattern: new URLPattern({ pathname: "/favicon.ico" }),
+      handler: notFound,
+    },
+    {
+      method: "GET",
+      pattern: new URLPattern({ pathname: "/static/*" }),
+      handler(req) {
+        return serveStatic(context, req);
       },
-      {
-        method: "GET",
-        pattern: new URLPattern({ pathname: "/static/*" }),
-        handler(req) {
-          return serveStatic(context, req);
-        },
+    },
+    {
+      method: "GET",
+      pattern: new URLPattern({ pathname: "/posts/:id" }),
+      async handler(_req, _info, params) {
+        if (!params?.pathname.groups.id) {
+          return notFound();
+        }
+
+        const result = await renderPost(context, params.pathname.groups.id);
+
+        if (!result.ok) {
+          return notFound();
+        }
+
+        return new Response(result.content, {
+          status: 200,
+          statusText: "OK",
+          headers: {
+            "content-type": "text/html",
+          },
+        });
       },
-      {
-        method: "GET",
-        pattern: new URLPattern({ pathname: "/posts/:id" }),
-        async handler(_req, _info, params) {
-          if (!params?.pathname.groups.id) {
-            return notFound();
-          }
-
-          const result = await renderPost(context, params.pathname.groups.id);
-
-          if (!result.ok) {
-            return notFound();
-          }
-
-          return new Response(result.content, {
-            status: 200,
-            statusText: "OK",
-            headers: {
-              "content-type": "text/html",
-            },
-          });
-        },
-      },
-    ],
-    async () => {
-      const html = await render(context);
-      return new Response(html, {
-        status: 200,
-        statusText: "OK",
-        headers: {
-          "content-type": "text/html",
-        },
-      });
-    }
-  );
+    },
+  ];
 }
 
 const textEncoder = new TextEncoder();
@@ -148,8 +151,11 @@ async function serveStatic(context: Context, req: Request): Promise<Response> {
 
 export async function start(manifest: Manifest) {
   const context = new Context(manifest);
-  await bundleApp(context);
-  initServer(context);
+  const [, routes] = await Promise.all([
+    bundleApp(context),
+    walkRoutes(context),
+  ]);
+  initServer({ context, routes });
 }
 
 async function bundleAppRoot(context: Context) {
@@ -327,7 +333,13 @@ async function bundle({
   return outputFiles.map(({ path }) => path);
 }
 
-function initServer(context: Context) {
+function initServer({
+  context,
+  routes,
+}: {
+  context: Context;
+  routes: Route[];
+}): void {
   const onListen: Deno.ServeOptions["onListen"] = (addr) => {
     const fullAddr = colors.cyan(`http://localhost:${addr.port}`);
     console.log(`\n\t🦥 Sloth Server running at ${fullAddr}\n`);
@@ -345,6 +357,160 @@ function initServer(context: Context) {
       onListen,
       onError,
     },
-    createRoutes(context)
+    route([...createRoutes(context), ...routes], async () => {
+      const html = await render(context);
+      return new Response(html, {
+        status: 200,
+        statusText: "OK",
+        headers: {
+          "content-type": "text/html",
+        },
+      });
+    })
   );
+}
+
+class InvalidRouteModuleError extends Error {
+  constructor(public readonly modulePath: string) {
+    super(
+      `No default export or default export is not a function at ${modulePath}`
+    );
+  }
+}
+
+async function createRouteHandlersFromRouteModule({
+  modulePath,
+  routeMatch,
+}: {
+  modulePath: string;
+  routeMatch: string;
+}): Promise<Route[]> {
+  const { default: PageComponent, handlers }: RouteModule = await import(
+    modulePath
+  );
+
+  if (typeof PageComponent !== "function") {
+    throw new InvalidRouteModuleError(modulePath);
+  }
+
+  const { GET: getHandler, ...otherHandlers } = handlers ?? {};
+
+  const handledMethods = Object.entries(otherHandlers).filter(
+    ([method, handler]) => {
+      const isValidHttpMethod = httpMethods.includes(method as HttpMethod);
+
+      if (isValidHttpMethod && typeof handler !== "function") {
+        console.log(
+          colors.yellow(
+            `Ignored handler for method ${method} because the given value is not a function at ${modulePath}`
+          )
+        );
+
+        return false;
+      }
+
+      return isValidHttpMethod;
+    }
+  );
+
+  const pattern = new URLPattern({ pathname: routeMatch });
+
+  return [
+    {
+      method: "GET",
+      pattern,
+      async handler(req) {
+        let handlerResult: ReturnType<RouteHandler> = undefined;
+        if (getHandler) {
+          handlerResult = await Promise.resolve(getHandler(req));
+          if (handlerResult instanceof Response) {
+            return handlerResult;
+          }
+        }
+        return Response.json({
+          modulePath,
+        });
+      },
+    },
+    ...handledMethods.map(([method, handler]): Route => {
+      return {
+        method,
+        pattern,
+        async handler(req) {
+          let handlerResult: ReturnType<RouteHandler> = undefined;
+          handlerResult = await Promise.resolve(handler(req));
+          if (handlerResult instanceof Response) {
+            return handlerResult;
+          }
+          return Response.json({
+            modulePath,
+          });
+        },
+      };
+    }),
+  ];
+}
+
+async function walkRoutes(context: Context): Promise<Route[]> {
+  const routesDir = context.resolvePath("routes");
+  let routes: Route[] = [];
+  for await (const file of walk(routesDir, {
+    includeDirs: false,
+    includeSymlinks: false,
+    match: [/\.tsx$/],
+  })) {
+    const routeMatch = createRoutePatternFromRelativePath(
+      relative(context.resolvePath("routes"), file.path)
+    );
+
+    try {
+      const moduleRoutes = await createRouteHandlersFromRouteModule({
+        modulePath: file.path,
+        routeMatch,
+      });
+      routes = routes.concat(moduleRoutes);
+    } catch (error) {
+      if (error instanceof InvalidRouteModuleError) {
+        console.warn(colors.yellow(error.message));
+        continue;
+      } else {
+        console.error(
+          colors.red(`Unexpected error while importing ${file.path} module`),
+          error
+        );
+      }
+    }
+  }
+
+  return routes;
+}
+
+function createRoutePatternFromRelativePath(routePath: string) {
+  const parts = routePath.slice(0, -extname(routePath).length).split("/");
+
+  for (const [index, part] of parts.entries()) {
+    if (index === parts.length - 1) {
+      if (["index"].includes(part)) {
+        parts.splice(index);
+        break;
+      }
+    }
+
+    const singleParamsMatch = /^\[+(?<paramName>[0-9A-Za-z-_]+)\]$/i.exec(part);
+    if (singleParamsMatch !== null) {
+      const paramName = singleParamsMatch.groups?.paramName;
+      parts[index] = `:${paramName}`;
+      continue;
+    }
+    const catchAllMatch = /^\[\.{3}(?<paramName>[0-9A-Za-z-_']+)\]$/i.exec(
+      part
+    );
+    if (catchAllMatch) {
+      parts[index] = "*";
+      parts.splice(index + 1);
+      break;
+    }
+  }
+
+  return "/" + parts.join("/");
 }
