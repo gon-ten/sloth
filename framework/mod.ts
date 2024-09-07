@@ -1,33 +1,37 @@
 import { compile } from "@mdx-js/mdx";
-import rehypeHighlight from "rehype-highlight";
 import { walk, exists } from "@std/fs";
-import {
-  type HttpMethod,
-  httpMethods,
-  type Manifest,
-  type RouteHandler,
-  type RouteModule,
+import remarkFrontmatter from "remark-frontmatter";
+import type {
+  Manifest,
+  RouteModule,
+  ImportMap,
+  ImportMapEntry,
+  CookedFiles,
 } from "./types.ts";
-import { render, renderPost } from "./ssr.tsx";
+import { renderPost, renderRoute } from "./ssr.tsx";
 import * as colors from "@std/fmt/colors";
-import * as esbuild from "https://deno.land/x/esbuild@v0.23.1/wasm.js";
-import { denoPlugins } from "jsr:@luca/esbuild-deno-loader@^0.10.3";
-import { Context } from "./context.ts";
+import * as esbuild from "esbuild";
+import { denoPlugins } from "@luca/esbuild-deno-loader";
+import { FsContext } from "./fs_context.ts";
 import {
   basename,
   extname,
   fromFileUrl,
+  join,
   relative,
   resolve,
+  SEPARATOR,
+  SEPARATOR_PATTERN,
   toFileUrl,
 } from "@std/path";
 import { contentType } from "@std/media-types";
-import { toReadableStream } from "@std/io";
-import { route, type Route } from "@std/http";
+import { type Handler, route, type Route, serveDir } from "@std/http";
+import { encodeHex } from "@std/encoding/hex";
+import remarkMdxFrontmatter from "remark-mdx-frontmatter";
+import { collectionsMap } from "./collections_map.ts";
 
-export { type RouteHandlers, type RouteHandler } from "./types.ts";
-
-function createRoutes(context: Context): Route[] {
+function createRoutes(context: FsContext): Route[] {
+  const cookedPath = context.resolveFromOutDir("static");
   return [
     {
       method: "GET",
@@ -37,9 +41,12 @@ function createRoutes(context: Context): Route[] {
     {
       method: "GET",
       pattern: new URLPattern({ pathname: "/static/*" }),
-      handler(req) {
-        return serveStatic(context, req);
-      },
+      handler: (req) =>
+        serveDir(req, {
+          fsRoot: cookedPath,
+          urlRoot: "static/",
+          showIndex: false,
+        }),
     },
     {
       method: "GET",
@@ -67,14 +74,9 @@ function createRoutes(context: Context): Route[] {
   ];
 }
 
-const textEncoder = new TextEncoder();
 const __dirname = fromFileUrl(new URL(".", import.meta.url));
 
-const { default: denoJson } = await import("./deno.json", {
-  with: {
-    type: "json",
-  },
-});
+const textEncoder = new TextEncoder();
 
 const DEFAULT_PORT = 3443;
 
@@ -87,18 +89,35 @@ async function createDirectoryIfNotExists(path: string) {
   if (dirExists) {
     return;
   }
-  await Deno.mkdir(path + "/");
+  await Deno.mkdir(path + "/", { recursive: true });
 }
 
-async function bundleApp(context: Context) {
-  const outDir = context.resolveFromOutDir(".");
-  await Deno.remove(outDir, { recursive: true }).catch(() => null);
-  await Deno.mkdir(outDir, { recursive: true }).catch(() => null);
+async function bundleAssets(context: FsContext) {
   await Promise.all([
-    bundleAppRoot(context),
     bundleStyles(context),
-    bundlePosts(context),
+    bundleCollections(context),
+    copyPublicFiles(context),
   ]);
+}
+
+async function copyPublicFiles(context: FsContext): Promise<void> {
+  const publicDir = context.resolvePath("public");
+  const publicDirExits = await exists(publicDir);
+
+  if (!publicDirExits) {
+    return;
+  }
+
+  const outDir = context.resolveFromOutDir("static");
+
+  for await (const file of walk(publicDir, { includeDirs: false })) {
+    const relativePath = relative(publicDir, file.path);
+    const outDirDir = join(outDir, relativePath.slice(0, -file.name.length));
+    await Deno.mkdir(outDirDir, {
+      recursive: true,
+    });
+    await Deno.copyFile(file.path, resolve(outDir, relativePath));
+  }
 }
 
 function internalServerError(): Response {
@@ -121,58 +140,19 @@ function notFound(): Response {
   });
 }
 
-async function serveStatic(context: Context, req: Request): Promise<Response> {
-  const url = new URL(req.url);
-  const cookedPath = context.resolveFromOutDir(url.pathname.slice(1));
-
-  try {
-    const fileInfo = await Deno.stat(cookedPath);
-    let bodyInit: BodyInit | null = null;
-    if (fileInfo.size > 1024 * 5) {
-      bodyInit = toReadableStream(await Deno.open(cookedPath));
-    } else {
-      bodyInit = await Deno.readFile(cookedPath);
-    }
-    return new Response(bodyInit, {
-      status: 200,
-      statusText: "OK",
-      headers: {
-        "content-type":
-          contentType(extname(cookedPath)) ?? "application/octect-stream",
-      },
-    });
-  } catch (error) {
-    if (error instanceof Deno.errors.NotFound) {
-      return notFound();
-    }
-    return internalServerError();
-  }
-}
-
 export async function start(manifest: Manifest) {
-  const context = new Context(manifest);
-  const [, routes] = await Promise.all([
-    bundleApp(context),
-    walkRoutes(context),
-  ]);
-  initServer({ context, routes });
+  const context = new FsContext(manifest);
+  const outDir = context.resolveFromOutDir(".");
+  await Deno.remove(outDir, { recursive: true }).catch(() => null);
+  await Deno.mkdir(outDir, { recursive: true }).catch(() => null);
+  const { routes, defaultHandler } = await buildRoutes(context);
+  await bundleAssets(context);
+  initServer({ context, routes, defaultHandler });
 }
 
-async function bundleAppRoot(context: Context) {
-  const rootImportPath = context.getAppRoot();
-
-  await bundle({
-    paths: [resolveInCurrentScope("./client_entry.tsx")],
-    outDir: context.resolveFromOutDir("static"),
-    define: {
-      "import.meta.env.ROOT_ENTRY": `"${rootImportPath}"`,
-    },
-  });
-}
-
-function bundleStyles(context: Context) {
+async function bundleStyles(context: FsContext) {
   const tailwindConfigPath = context.resolvePath("tailwind.config.js");
-  const outFile = context.resolveFromOutDir("static", "styles", "styles.css");
+  const outFile = context.resolveFromOutDir("static", "styles.css");
   const cssCmd = new Deno.Command(Deno.execPath(), {
     args: [
       "run",
@@ -187,65 +167,120 @@ function bundleStyles(context: Context) {
       "-o",
       outFile,
     ],
-    stdout: "inherit",
-    stderr: "inherit",
+    stdout: "piped",
+    stderr: "piped",
   });
 
-  cssCmd.spawn();
+  const cp = cssCmd.spawn();
+  const { success, stderr } = await cp.output();
+
+  if (!success) {
+    console.warn(
+      colors.red(`⨯ CSS bundling process failed. Reason:`),
+      new TextDecoder().decode(stderr)
+    );
+  } else {
+    console.log(colors.green(`✔️ CSS bundling process succeeded`));
+  }
 }
 
-async function bundlePosts(context: Context): Promise<void> {
-  const postsDir = context.resolvePath("./posts");
-  const postsDirExists = await exists(postsDir);
+async function bundleCollections(fsContext: FsContext): Promise<void> {
+  const collectionsDir = fsContext.resolvePath("collections");
+  const postsDirExists = await exists(collectionsDir);
   if (!postsDirExists) {
     console.warn(
-      `📜 Posts directory not found. Expected to be located at ${postsDir}`
+      `📜 Posts directory not found. Expected to be located at ${collectionsDir}`
     );
     return;
   }
-  const rawPostsDir = context.resolveFromOutDir("raw_posts");
-  await createDirectoryIfNotExists(rawPostsDir);
+  const rawCollectionsDir = fsContext.resolveFromOutDir("raw", "collections");
+  await createDirectoryIfNotExists(rawCollectionsDir);
   let tmpPaths: string[] = [];
-  for await (const post of walk(postsDir, {
+  const collections: Record<string, string[]> = {};
+  for await (const file of walk(collectionsDir, {
     includeDirs: false,
     match: [/.mdx$/],
   })) {
-    const buffer = await Deno.readFile(post.path);
+    const buffer = await Deno.readFile(file.path);
+    const baseUrl = file.path.slice(0, -basename(file.path).length);
     const result = await compile(buffer, {
       outputFormat: "program",
       jsxImportSource: "preact",
-      rehypePlugins: [rehypeHighlight],
-      baseUrl: toFileUrl(postsDir + "/"),
+      // deno-lint-ignore no-explicit-any
+      remarkPlugins: [remarkFrontmatter, remarkMdxFrontmatter as any],
+      baseUrl: toFileUrl(baseUrl),
     });
-    const dstName = post.name.replace(/.mdx$/, ".jsx");
-    const dstPath = resolve(rawPostsDir, dstName);
-    await Deno.writeFile(
-      dstPath,
-      result.value instanceof Uint8Array
-        ? result.value
-        : textEncoder.encode(result.value)
+
+    const ext = extname(file.name);
+    const collectionName = file.name.slice(0, -ext.length);
+    const collectionPathPrefix = relative(collectionsDir, file.path).slice(
+      0,
+      -file.name.length
     );
-    tmpPaths = tmpPaths.concat(dstPath);
+
+    const collectionDstDir = join(rawCollectionsDir, collectionPathPrefix);
+    const collectionDstPath = join(collectionDstDir, collectionName + ".jsx");
+
+    await createDirectoryIfNotExists(collectionDstDir);
+
+    const fileContent =
+      typeof result.value === "string"
+        ? textEncoder.encode(result.value)
+        : result.value;
+    await Deno.writeFile(collectionDstPath, fileContent, { createNew: true });
+
+    const collectionGetterName = collectionPathPrefix
+      .split(SEPARATOR)
+      .filter(Boolean)
+      .join(SEPARATOR);
+    collections[collectionGetterName] ??= [];
+    collections[collectionGetterName].push(collectionName);
+
+    tmpPaths = tmpPaths.concat(toFileUrl(collectionDstPath).href);
   }
 
-  const postsBarrelFilePath = resolve(rawPostsDir, "index.js");
+  // FIXME
+  Object.entries(collections).map(([key, value]) => {
+    collectionsMap.set(
+      key,
+      Object.fromEntries(value.map((name) => [name, {}]))
+    );
+  });
+
+  const generatedTypesFilePath = resolveInCurrentScope(
+    "./generated/generated.ts"
+  );
+
+  await Deno.writeTextFile(
+    generatedTypesFilePath,
+    `// THIS FILE IS AUTO GENERATED AND WILL BE OVERRIDEN FRECUENTLY. DO NOT MODIFY IT.
+    export type CollectionEntry = {
+      frontMatter: Record<string, string>
+    };
+    
+    export type CollectionsMap = { ${Object.entries(collections)
+      .map(
+        ([key, value]) =>
+          `"${key}": { ${value
+            .map((c) => `"${c}": CollectionEntry`)
+            .join(",")} }`
+      )
+      .join(",")} }
+    `
+  );
+
+  const postsBarrelFilePath = resolve(rawCollectionsDir, "index.js");
   const postsBarrelFileContent = `
     const posts = {
         ${tmpPaths
-          .map(
-            (tmpPath) =>
-              `"${basename(tmpPath).slice(
-                0,
-                -extname(tmpPath).length
-              )}": () => import("./${basename(tmpPath)}")`
-          )
+          .map((tmpPath) => `"${tmpPath}": () => import("${tmpPath}")`)
           .join(",")}
     }
   
     export default posts
   `;
 
-  const hydratePostContentFilePath = resolve(rawPostsDir, "hydrate.jsx");
+  const hydratePostContentFilePath = resolve(rawCollectionsDir, "hydrate.jsx");
   const hydratePostContent = `
     import { hydrate } from "preact-iso";
     import { default as posts } from "./index.js";
@@ -260,39 +295,63 @@ async function bundlePosts(context: Context): Promise<void> {
     }
   `;
 
-  await Deno.writeFile(
-    postsBarrelFilePath,
-    textEncoder.encode(postsBarrelFileContent)
-  );
-  await Deno.writeFile(
-    hydratePostContentFilePath,
-    textEncoder.encode(hydratePostContent)
-  );
+  await Promise.all([
+    Deno.writeTextFile(postsBarrelFilePath, postsBarrelFileContent),
+    Deno.writeTextFile(hydratePostContentFilePath, hydratePostContent),
+  ]);
 
-  const fmtCmd = new Deno.Command(Deno.execPath(), {
-    args: ["fmt", postsBarrelFilePath, hydratePostContentFilePath],
+  formatFiles({
+    entryFiles: [
+      postsBarrelFilePath,
+      hydratePostContentFilePath,
+      generatedTypesFilePath,
+    ],
+    target: "Collections Files",
   });
-  fmtCmd.spawn();
 
-  const outDir = context.resolveFromOutDir("static", "./posts");
+  const outDir = fsContext.resolveFromOutDir("static", "./posts");
   await createDirectoryIfNotExists(outDir);
 
-  await bundle({
+  await bundleClient({
     paths: [postsBarrelFilePath, hydratePostContentFilePath],
     outDir,
+    fsContext,
   });
 }
 
-type CookedFiles = string[];
+async function formatFiles({
+  entryFiles,
+  target,
+}: {
+  entryFiles: string[];
+  target: string;
+}) {
+  const fmtCmd = new Deno.Command(Deno.execPath(), {
+    args: ["fmt", "-q", ...entryFiles],
+    stderr: "piped",
+    stdout: "null",
+  });
+  const cp = fmtCmd.spawn();
+  const { success, stderr } = await cp.output();
+  console.log(
+    success
+      ? colors.green(`✔️ ${target}: output files formatted correctly.`)
+      : colors.red(
+          `⨯ ${target} there was an error during file formatting. ${stderr}`
+        )
+  );
+}
 
-async function bundle({
+async function bundleClient({
   paths,
   define = {},
   outDir,
   plugins = [],
+  fsContext,
 }: {
   paths: string[];
   outDir: string;
+  fsContext: FsContext;
   define?: Record<string, string>;
   plugins?: esbuild.Plugin[];
 }): Promise<CookedFiles> {
@@ -302,7 +361,7 @@ async function bundle({
     plugins: [
       ...plugins,
       ...denoPlugins({
-        configPath: resolveInCurrentScope("./deno.json"),
+        configPath: fsContext.resolvePath("./deno.json"),
       }),
     ],
     sourcemap: true,
@@ -316,8 +375,10 @@ async function bundle({
     target: "es2022",
     format: "esm",
     jsx: "automatic",
-    jsxImportSource: denoJson.compilerOptions.jsxImportSource,
-    define,
+    jsxImportSource: "preact",
+    define: {
+      ...define,
+    },
   });
 
   const { outputFiles = [] } = result;
@@ -336,10 +397,14 @@ async function bundle({
 function initServer({
   context,
   routes,
+  defaultHandler,
 }: {
-  context: Context;
+  context: FsContext;
   routes: Route[];
+  defaultHandler: Handler;
 }): void {
+  console.log(colors.bgBrightBlue("initializing server"));
+
   const onListen: Deno.ServeOptions["onListen"] = (addr) => {
     const fullAddr = colors.cyan(`http://localhost:${addr.port}`);
     console.log(`\n\t🦥 Sloth Server running at ${fullAddr}\n`);
@@ -357,136 +422,200 @@ function initServer({
       onListen,
       onError,
     },
-    route([...createRoutes(context), ...routes], async () => {
-      const html = await render(context);
-      return new Response(html, {
-        status: 200,
-        statusText: "OK",
-        headers: {
-          "content-type": "text/html",
-        },
-      });
-    })
+    route([...createRoutes(context), ...routes], defaultHandler)
   );
 }
 
-class InvalidRouteModuleError extends Error {
-  constructor(public readonly modulePath: string) {
-    super(
-      `No default export or default export is not a function at ${modulePath}`
-    );
-  }
-}
-
-async function createRouteHandlersFromRouteModule({
-  modulePath,
+function createRouteHandlersFromRouteModule({
+  context,
   routeMatch,
+  importMap,
 }: {
-  modulePath: string;
+  context: FsContext;
   routeMatch: string;
-}): Promise<Route[]> {
-  const { default: PageComponent, handlers }: RouteModule = await import(
-    modulePath
-  );
-
-  if (typeof PageComponent !== "function") {
-    throw new InvalidRouteModuleError(modulePath);
-  }
-
-  const { GET: getHandler, ...otherHandlers } = handlers ?? {};
-
-  const handledMethods = Object.entries(otherHandlers).filter(
-    ([method, handler]) => {
-      const isValidHttpMethod = httpMethods.includes(method as HttpMethod);
-
-      if (isValidHttpMethod && typeof handler !== "function") {
-        console.log(
-          colors.yellow(
-            `Ignored handler for method ${method} because the given value is not a function at ${modulePath}`
-          )
-        );
-
-        return false;
-      }
-
-      return isValidHttpMethod;
-    }
-  );
-
+  importMap: ImportMapEntry;
+}): Route[] {
   const pattern = new URLPattern({ pathname: routeMatch });
-
   return [
     {
       method: "GET",
       pattern,
-      async handler(req) {
-        let handlerResult: ReturnType<RouteHandler> = undefined;
-        if (getHandler) {
-          handlerResult = await Promise.resolve(getHandler(req));
-          if (handlerResult instanceof Response) {
-            return handlerResult;
-          }
-        }
-        return Response.json({
-          modulePath,
+      async handler(req, _, params) {
+        const html = await renderRoute({
+          context,
+          importMap,
+          request: req,
+          params: params ?? undefined,
         });
+
+        const res = new Response(html, {
+          headers: {
+            "content-type": contentType("html"),
+          },
+        });
+
+        return res;
       },
     },
-    ...handledMethods.map(([method, handler]): Route => {
-      return {
-        method,
-        pattern,
-        async handler(req) {
-          let handlerResult: ReturnType<RouteHandler> = undefined;
-          handlerResult = await Promise.resolve(handler(req));
-          if (handlerResult instanceof Response) {
-            return handlerResult;
-          }
-          return Response.json({
-            modulePath,
-          });
-        },
-      };
-    }),
   ];
 }
 
-async function walkRoutes(context: Context): Promise<Route[]> {
+function createHash() {
+  return encodeHex(crypto.getRandomValues(new Uint8Array(10)));
+}
+
+async function splitRouteIntoFiles({
+  filePath,
+  context,
+}: {
+  filePath: string;
+  context: FsContext;
+}): Promise<ImportMapEntry> {
+  const { loader }: RouteModule = await import(filePath);
+
+  const hash = createHash();
+  const srcDir = context.resolvePath("routes");
+  const outDir = context.resolveFromOutDir("raw", "ssr");
+  const ext = extname(filePath);
+  const filePathWithoutExt = filePath.slice(0, -ext.length);
+  const sluggedRelativePath = relative(srcDir, filePathWithoutExt).replaceAll(
+    SEPARATOR,
+    "_"
+  );
+
+  const srcFileUrlPath = toFileUrl(filePath).href;
+  const exportComponentFilePath = join(
+    outDir,
+    `export_${sluggedRelativePath}_${hash}.tsx`
+  );
+  const exportComponentFileContent = `
+    import { default as Page } from "${srcFileUrlPath}";
+    export default Page;
+  `;
+
+  const loaderFilePath = join(
+    outDir,
+    `loader_${sluggedRelativePath}_${hash}.ts`
+  );
+  const loaderFileContent =
+    typeof loader === "function"
+      ? `export { loader as default } from "${srcFileUrlPath}";`
+      : `export default () => undefined`;
+
+  const setupClientPath = resolveInCurrentScope("./setup_client.tsx");
+  const hydrationFilePath = join(outDir, `hydrate_${hash}.tsx`);
+  const hydrationFileContent = `
+    import { setupClient } from "${setupClientPath}";
+
+    (async () => {
+      const { default: Page } = await import("${exportComponentFilePath}");
+      setupClient(Page, "${hash}");
+    })();
+  `;
+
+  await Promise.all([
+    Deno.writeTextFile(exportComponentFilePath, exportComponentFileContent),
+    Deno.writeTextFile(loaderFilePath, loaderFileContent),
+    Deno.writeTextFile(hydrationFilePath, hydrationFileContent),
+  ]);
+
+  return {
+    component: exportComponentFilePath,
+    hydration: hydrationFilePath,
+    loader: loaderFilePath,
+    hash,
+  };
+}
+
+async function buildRoutes(
+  context: FsContext
+): Promise<{ defaultHandler: Handler; routes: Route[] }> {
   const routesDir = context.resolvePath("routes");
   let routes: Route[] = [];
+
+  const rawSsrDir = context.resolveFromOutDir("raw", "ssr");
+  await createDirectoryIfNotExists(rawSsrDir);
+
+  const importMap: ImportMap = {};
+
   for await (const file of walk(routesDir, {
     includeDirs: false,
     includeSymlinks: false,
     match: [/\.tsx$/],
   })) {
-    const routeMatch = createRoutePatternFromRelativePath(
-      relative(context.resolvePath("routes"), file.path)
+    const routesDir = context.resolvePath("./routes");
+    const { pattern: routeMatch } = createRoutePatternFromRelativePath(
+      relative(routesDir, file.path)
     );
 
-    try {
-      const moduleRoutes = await createRouteHandlersFromRouteModule({
-        modulePath: file.path,
-        routeMatch,
-      });
-      routes = routes.concat(moduleRoutes);
-    } catch (error) {
-      if (error instanceof InvalidRouteModuleError) {
-        console.warn(colors.yellow(error.message));
-        continue;
-      } else {
-        console.error(
-          colors.red(`Unexpected error while importing ${file.path} module`),
-          error
-        );
-      }
-    }
+    const { component, loader, hash, hydration } = await splitRouteIntoFiles({
+      context,
+      filePath: file.path,
+    });
+
+    const importMapEntry: ImportMapEntry = {
+      hash,
+      component,
+      loader,
+      hydration,
+    };
+
+    importMap[file.path] = importMapEntry;
+
+    const moduleRoutes = createRouteHandlersFromRouteModule({
+      context,
+      importMap: importMapEntry,
+      routeMatch,
+    });
+
+    routes = routes.concat(moduleRoutes);
   }
 
-  return routes;
+  await Promise.all([
+    Deno.writeTextFile(
+      join(rawSsrDir, "import_map.json"),
+      JSON.stringify(importMap, null, 2)
+    ),
+  ]);
+
+  formatFiles({
+    target: "Route Files",
+    entryFiles: Object.values(importMap).flatMap((entry) =>
+      Object.values(entry)
+    ),
+  });
+
+  const clientBuildOutDir = context.resolveFromOutDir("static");
+  await createDirectoryIfNotExists(clientBuildOutDir);
+
+  await bundleClient({
+    fsContext: context,
+    paths: [...Object.values(importMap).flatMap((entry) => entry.hydration)],
+    outDir: clientBuildOutDir,
+    plugins: [
+      overrideImportPath({
+        filter: /\@gdiezpa\/blog\/runtime/,
+        replaceWithPath: fromFileUrl(
+          new URL("./client_runtime.ts", import.meta.url).href
+        ),
+        debug: true,
+      }),
+    ],
+  });
+
+  return {
+    routes,
+    defaultHandler: notFound,
+  };
 }
 
-function createRoutePatternFromRelativePath(routePath: string) {
-  const parts = routePath.slice(0, -extname(routePath).length).split("/");
+function createRoutePatternFromRelativePath(routePath: string): {
+  pattern: string;
+  segments: string[];
+} {
+  const parts = routePath
+    .slice(0, -extname(routePath).length)
+    .split(SEPARATOR_PATTERN);
 
   for (const [index, part] of parts.entries()) {
     if (index === parts.length - 1) {
@@ -496,21 +625,53 @@ function createRoutePatternFromRelativePath(routePath: string) {
       }
     }
 
-    const singleParamsMatch = /^\[+(?<paramName>[0-9A-Za-z-_]+)\]$/i.exec(part);
-    if (singleParamsMatch !== null) {
-      const paramName = singleParamsMatch.groups?.paramName;
+    const singleParamMatch = /^\[+(?<paramName>[0-9A-Za-z-_]+)\]$/i.exec(part);
+
+    if (singleParamMatch !== null) {
+      const paramName = singleParamMatch.groups?.paramName;
       parts[index] = `:${paramName}`;
       continue;
     }
+
     const catchAllMatch = /^\[\.{3}(?<paramName>[0-9A-Za-z-_']+)\]$/i.exec(
       part
     );
+
     if (catchAllMatch) {
-      parts[index] = "*";
+      const paramName = catchAllMatch.groups?.paramName;
+      parts[index] = `:${paramName}*`;
       parts.splice(index + 1);
       break;
     }
   }
 
-  return "/" + parts.join("/");
+  return {
+    pattern: "/" + parts.join("/"),
+    segments: [...parts, basename(routePath)],
+  };
 }
+
+const overrideImportPath = (opts: {
+  filter: RegExp;
+  replaceWithPath: string;
+  debug?: boolean;
+}): esbuild.Plugin => {
+  return {
+    name: "override-import-map-plugin",
+    setup(builder) {
+      builder.onResolve({ filter: opts.filter }, (args) => {
+        if (opts.debug) {
+          console.log(
+            colors.bold("\nOverride import path plugin:\n\n") +
+              colors.underline(`${args.importer}\n\n`) +
+              colors.red(`[-] ${args.path}\n`) +
+              colors.brightGreen(`[+] ${opts.replaceWithPath}\n`)
+          );
+        }
+        return {
+          path: opts.replaceWithPath,
+        };
+      });
+    },
+  };
+};

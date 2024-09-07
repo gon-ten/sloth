@@ -3,7 +3,7 @@ import type { Manifest } from "./types.ts";
 import { isAbsolute, resolve } from "@std/path";
 import { isFileUrl } from "./utils.ts";
 
-export class Context {
+export class FsContext {
   private readonly absBaseUrl: string;
   constructor(private manifest: Manifest) {
     if (isFileUrl(manifest.baseUrl)) {
@@ -27,5 +27,9 @@ export class Context {
 
   resolveFromOutDir(...segments: string[]): string {
     return this.resolvePath(".cooked", ...segments);
+  }
+
+  resolveRoute(...segments: string[]): string {
+    return this.resolvePath("routes", ...segments);
   }
 }

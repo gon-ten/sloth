@@ -20,7 +20,8 @@
       "jsr:@std/path@^1.0.3": "jsr:@std/path@1.0.4",
       "jsr:@std/path@^1.0.4": "jsr:@std/path@1.0.4",
       "jsr:@std/streams@^1.0.4": "jsr:@std/streams@1.0.4",
-      "npm:tailwindcss": "npm:tailwindcss@3.4.10_postcss@8.4.45"
+      "npm:tailwindcss": "npm:tailwindcss@3.4.10_postcss@8.4.45",
+      "npm:tailwindcss@^3.4.1": "npm:tailwindcss@3.4.10_postcss@8.4.45"
     },
     "jsr": {
       "@luca/esbuild-deno-loader@0.10.3": {
@@ -711,9 +712,7 @@
     "https://deno.land/x/esbuild@v0.23.1/wasm.js": "7319c541fc1a057001b01317ae27fd35f7ff1fc363b99347ce29631330c42972",
     "https://esm.sh/@mdx-js/mdx@3.0.1": "1d99470156ee7812f5ad6de75b48fe485f21a1bf91567be207ced82b2495bef5",
     "https://esm.sh/preact-iso@2.6.3?deps=preact-render-to-string@6.5.9,preact@10.23.2": "920fca697c87f4dce047172dfad63702d07a293c0170bd1b2d2a922b1c88d26e",
-    "https://esm.sh/preact-render-to-string@6.5.9?deps=preact@10.23.2": "9271009bc2c89f170bc62c4b40b067e87443bcfede0b1fc057870a8db5c6a7fb",
     "https://esm.sh/preact@10.23.2": "fd82d79b57f929b5e3c3666feeafd428ef621da3ed5f28845da745f7cb6a3112",
-    "https://esm.sh/preact@10.23.2/hooks": "26ee4d3f67974761eaf32aa3cb571717e91276ceaaa8232af0f917c9b3a05d2f",
     "https://esm.sh/preact@10.23.2/jsx-runtime": "e6d6770bebac50979b9838fecdbdcf6cecd088d62f03061266200cc8d6150768",
     "https://esm.sh/remark-frontmatter@5.0.0": "9c32604479ecbd85116b6256d4626e237f39c69993d1b6a0e143b74eec3c96eb",
     "https://esm.sh/remark-mdx-frontmatter@5.0.0": "c6e43b512efe59ed7e506b95d8058016a934f13dca6c00638151f1108c4c67c0",
@@ -799,7 +798,6 @@
     "https://esm.sh/v135/preact-iso@2.6.3/X-ZC9wcmVhY3QtcmVuZGVyLXRvLXN0cmluZ0A2LjUuOSxwcmVhY3RAMTAuMjMuMg/denonext/preact-iso.mjs": "3d6f55c53448728ae8a050b6a42197cf784ad85a163987c66ffcb89c40e9898b",
     "https://esm.sh/v135/preact-iso@2.6.3/X-ZC9wcmVhY3QtcmVuZGVyLXRvLXN0cmluZ0A2LjUuOSxwcmVhY3RAMTAuMjMuMg/denonext/prerender.js": "a81b4068308bf3717c7b61cffd3ba18ab819af991f8adde8aef190438f9b0dde",
     "https://esm.sh/v135/preact-iso@2.6.3/X-ZC9wcmVhY3QtcmVuZGVyLXRvLXN0cmluZ0A2LjUuOSxwcmVhY3RAMTAuMjMuMg/denonext/router.js": "a7b8de7ba2406c780fbd953dece62e7f7ec3ffd4cc780543fc264c5dc1cb6495",
-    "https://esm.sh/v135/preact-render-to-string@6.5.9/X-ZC9wcmVhY3RAMTAuMjMuMg/denonext/preact-render-to-string.mjs": "8106e9297af9587525fa4a7ad119a7c51e03a63729359f2f9ff0fb685ae3e2de",
     "https://esm.sh/v135/preact-render-to-string@6.5.9/denonext/preact-render-to-string.mjs": "8106e9297af9587525fa4a7ad119a7c51e03a63729359f2f9ff0fb685ae3e2de",
     "https://esm.sh/v135/property-information@6.4.0/denonext/property-information.mjs": "8a61ad4cc589e3a30c752bd2eea7703cf286139c919f55f4fd289b90a7ac65a9",
     "https://esm.sh/v135/remark-frontmatter@5.0.0/denonext/remark-frontmatter.mjs": "03e034e1a55ecacfd78dd6511f64c73c9a1ce4a92ad99bf23e9689b7be7f2356",
@@ -831,41 +829,20 @@
     "https://esm.sh/v135/zwitch@2.0.4/denonext/zwitch.mjs": "c0e8c246a1f38b425335ea78cc366a7801d3ef89701229a35f85a51310e6e49f"
   },
   "workspace": {
-    "members": {
-      "example": {
-        "dependencies": [
-          "jsr:@luca/esbuild-deno-loader",
-          "jsr:@std/assert@1",
-          "jsr:@std/dotenv@^0.225.1",
-          "jsr:@std/encoding@^1.0.3",
-          "jsr:@std/fmt@^1.0.1",
-          "jsr:@std/front-matter@^1.0.4",
-          "jsr:@std/fs@^1.0.2",
-          "jsr:@std/http@^1.0.4",
-          "jsr:@std/io@^0.224.6",
-          "jsr:@std/media-types@^1.0.3",
-          "jsr:@std/path@^1.0.3",
-          "jsr:@std/streams@^1.0.3",
-          "npm:tailwindcss@^3.4.1"
-        ]
-      },
-      "framework": {
-        "dependencies": [
-          "jsr:@luca/esbuild-deno-loader",
-          "jsr:@std/assert@1",
-          "jsr:@std/dotenv@^0.225.1",
-          "jsr:@std/encoding@^1.0.3",
-          "jsr:@std/fmt@^1.0.1",
-          "jsr:@std/front-matter@^1.0.4",
-          "jsr:@std/fs@^1.0.2",
-          "jsr:@std/http@^1.0.4",
-          "jsr:@std/io@^0.224.6",
-          "jsr:@std/media-types@^1.0.3",
-          "jsr:@std/path@^1.0.3",
-          "jsr:@std/streams@^1.0.3",
-          "npm:tailwindcss@^3.4.1"
-        ]
-      }
-    }
+    "dependencies": [
+      "jsr:@luca/esbuild-deno-loader",
+      "jsr:@std/assert@1",
+      "jsr:@std/dotenv@^0.225.1",
+      "jsr:@std/encoding@^1.0.3",
+      "jsr:@std/fmt@^1.0.1",
+      "jsr:@std/front-matter@^1.0.4",
+      "jsr:@std/fs@^1.0.2",
+      "jsr:@std/http@^1.0.4",
+      "jsr:@std/io@^0.224.6",
+      "jsr:@std/media-types@^1.0.3",
+      "jsr:@std/path@^1.0.3",
+      "jsr:@std/streams@^1.0.3",
+      "npm:tailwindcss@^3.4.1"
+    ]
   }
 }

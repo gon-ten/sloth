@@ -13,4 +13,7 @@ export function resolveFromBaseUrl(
   return resolve(basePath, ...segments);
 }
 
-export const IS_BROWSER = typeof window !== "undefined";
+export const IS_BROWSER = typeof document !== "undefined";
+
+export const HYDRATION_SCRIPT_MEDIA_TYPE =
+  "application/vnd.sloth+json" as const;
