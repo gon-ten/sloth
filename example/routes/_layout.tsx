@@ -1,4 +1,4 @@
-import type { LayoutProps } from "@gdiezpa/blog/runtime";
+import type { LayoutProps } from "@sloth/core/runtime";
 import { Link } from "@/🧱/Link.tsx";
 
 export default function BaseLayout({ children }: LayoutProps) {

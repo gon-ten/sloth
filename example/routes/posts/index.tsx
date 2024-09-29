@@ -1,4 +1,4 @@
-import { getCollection } from "@gdiezpa/blog/runtime";
+import { getCollection } from "@sloth/core/runtime";
 
 export default function Posts() {
   const { Provider } = getCollection("blogs").all();

@@ -2,7 +2,7 @@ import {
   getCollection,
   type PageProps,
   type RouteConfig,
-} from "@gdiezpa/blog/runtime";
+} from "@sloth/core/runtime";
 import { useRef } from "preact/hooks";
 
 export const config: RouteConfig = {

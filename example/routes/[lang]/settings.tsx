@@ -1,4 +1,4 @@
-import type { PageProps } from "@gdiezpa/blog/runtime";
+import type { PageProps } from "@sloth/core/runtime";
 
 type Params = {
   lang: string;

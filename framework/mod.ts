@@ -80,7 +80,7 @@ export async function start(manifest: Manifest) {
     plugins: [
       // Replace runtime with browser/runtime
       overrideImportPath({
-        filter: /\@gdiezpa\/blog\/runtime/,
+        filter: /\@sloth\/core\/runtime/,
         replaceWithPath: fromFileUrl(
           new URL("./browser/runtime.ts", import.meta.url).href
         ),

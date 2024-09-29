@@ -1,4 +1,4 @@
-import { getCollection, type PageProps } from "@gdiezpa/blog/runtime";
+import { getCollection, type PageProps } from "@sloth/core/runtime";
 import { Tag } from "@/🧱/Tag.tsx";
 
 export default function Blogs({ url }: PageProps) {

@@ -1,5 +1,5 @@
-import type { ComposeRouteTypes } from "@gdiezpa/blog/runtime";
-import { getCollection } from "@gdiezpa/blog/runtime";
+import type { ComposeRouteTypes } from "@sloth/core/runtime";
+import { getCollection } from "@sloth/core/runtime";
 
 type RouteTypes = ComposeRouteTypes<
   Array<{

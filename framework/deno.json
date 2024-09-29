@@ -10,8 +10,8 @@
   },
   "imports": {
     "@deno/emit": "jsr:@deno/emit@^0.45.0",
-    "@gdiezpa/blog": "./mod.ts",
-    "@gdiezpa/blog/runtime": "./runtime.ts",
+    "@sloth/core": "./mod.ts",
+    "@sloth/core/runtime": "./runtime.ts",
     "@luca/esbuild-deno-loader": "jsr:@luca/esbuild-deno-loader",
     "@mdx-js/mdx": "https://esm.sh/@mdx-js/mdx@3.0.1",
     "@mdx-js/preact": "https://esm.sh/@mdx-js/preact@3.0.1",

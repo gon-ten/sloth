@@ -1,5 +1,5 @@
 import type { FunctionComponent } from "preact";
-import type { Metadata } from "@gdiezpa/blog/runtime";
+import type { Metadata } from "@sloth/core/runtime";
 
 export const metadata: Metadata = {
   title: "About",

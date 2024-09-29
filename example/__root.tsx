@@ -1,5 +1,5 @@
 import "preact/debug";
-import type { RootProps } from "@gdiezpa/blog/runtime";
+import type { RootProps } from "@sloth/core/runtime";
 
 export default function Root({ children, links, Metadata }: RootProps) {
   return (
