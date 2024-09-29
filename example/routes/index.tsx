@@ -14,7 +14,7 @@ export default function Index() {
         <div className="mt-6">
           You can start by modifiying <code>./routes/index.tsx</code>
         </div>
-        <img src="/static/images/sloth_01.jpg" />
+        <img src="/images/sloth_01.jpg" />
       </main>
     </div>
   );

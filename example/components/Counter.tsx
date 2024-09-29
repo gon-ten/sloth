@@ -11,13 +11,13 @@ export const Counter = ({}: Props) => {
   const a = () => (active ? "text-red-500" : "text-orange-400");
 
   return (
-    <div
+    <button
       className={a()}
       onClick={() => {
         setTest((prev) => prev + 1);
       }}
     >
       {test}
-    </div>
+    </button>
   );
 };

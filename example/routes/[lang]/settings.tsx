@@ -7,7 +7,5 @@ type Params = {
 type Data = void;
 
 export default function Settings({ data, params }: PageProps<Data, Params>) {
-  const { lang } = params;
-  console.log({ lang, data });
-  return <div>Settings</div>;
+  return <div onClick={alert}>Settings</div>;
 }

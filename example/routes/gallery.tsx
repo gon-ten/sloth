@@ -1,4 +1,5 @@
 import type { ComposeRouteTypes } from "@gdiezpa/blog/runtime";
+import { getCollection } from "@gdiezpa/blog/runtime";
 
 type RouteTypes = ComposeRouteTypes<
   Array<{
@@ -11,24 +12,25 @@ export const loader: RouteTypes["Loader"] = () => {
   return Promise.resolve([
     {
       id: 1,
-      imageSrc: "/static/images/sloth_01.jpg",
+      imageSrc: "/images/sloth_01.jpg",
     },
     {
       id: 2,
-      imageSrc: "/static/images/sloth_02.jpg",
+      imageSrc: "/images/sloth_02.jpg",
     },
     {
       id: 3,
-      imageSrc: "/static/images/sloth_03.jpg",
+      imageSrc: "/images/sloth_03.jpg",
     },
     {
       id: 4,
-      imageSrc: "/static/images/sloth_04.jpg",
+      imageSrc: "/images/sloth_04.jpg",
     },
   ]);
 };
 
-export default function Gallery({ data }: RouteTypes["PagaProps"]) {
+export default function Gallery({ data }: RouteTypes["PageProps"]) {
+  getCollection("blogs").all();
   return (
     <div className="w-screen h-screen flex flex-col bg-slate-900">
       <header>
@@ -38,11 +40,14 @@ export default function Gallery({ data }: RouteTypes["PagaProps"]) {
       </header>
       <main className="w-full h-full grid grid-cols-2 grid-rows-2 *:place-self-center">
         {data.map(({ id, imageSrc }) => (
-          <img
-            key={id}
-            src={imageSrc}
-            className="rounded-2xl hover:scale-125"
-          />
+          <picture key={id}>
+            <source
+              srcset="/images/sloth_04.jpg"
+              media="(min-width: 600px)"
+              src={imageSrc}
+            />
+            <img src={imageSrc} className="rounded-2xl hover:scale-125" />
+          </picture>
         ))}
       </main>
     </div>

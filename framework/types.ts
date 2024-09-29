@@ -1,24 +1,20 @@
-import type { VNode, FunctionComponent, ComponentType } from "preact";
+import type { VNode, ComponentType } from "preact";
+import type { JSX } from "preact";
+import type { ZodSchema } from "zod";
 
 export type Manifest = {
   baseUrl: string;
+  ssrOnly?: boolean;
 };
 
 export type RootProps = {
-  Component: ComponentType;
+  Metadata: ComponentType;
+  links: JSX.Element | JSX.Element[];
+  children: JSX.Element;
 };
 
 export type RootModule = {
   default: ComponentType<RootProps>;
-};
-
-export type AppModule = {
-  ClientApp: FunctionComponent;
-  ServerApp: FunctionComponent<{ url?: string; data: Record<string, unknown> }>;
-};
-
-export type PostModule = {
-  default: () => VNode;
 };
 
 export type PostsBarrelExport = {
@@ -51,33 +47,50 @@ export type RouteHandlers<Data extends unknown = unknown> = Partial<
   Record<HttpMethod, RouteHandler<Data>>
 >;
 
+export type RouteConfig = {
+  skipInheritedLayouts?: boolean;
+};
+
 export type RouteModule = {
-  loader: () => Promise<unknown> | unknown;
+  config?: RouteConfig;
+  metadata?: Metadata;
+  loader?: () => Promise<unknown> | unknown;
   default: () => VNode;
 };
 
 export type PageModule = {
+  config?: RouteConfig;
   default: (props: PageProps) => VNode;
 };
 
+export type LoaderFunction = (args: {
+  request: Request;
+  params: Record<string, string>;
+}) => Promise<unknown>;
+
 export type LoaderModule = {
-  default: (args: {
-    request: Request;
-    params: Record<string, string>;
-  }) => Promise<unknown>;
+  default: LoaderFunction;
 };
 
 export type InferLoaderReturnType<C extends () => Promise<unknown>> =
   C extends () => Promise<infer T> ? T : never;
 
-export type ImportMapEntry = {
+type RouteInterceptors = {
+  hash: string;
+  middleware?: string;
+  layout?: string;
+};
+
+export type RouteImportMapEntry = {
   hash: string;
   hydration: string;
   component: string;
-  loader: string;
+  loader?: string;
+  interceptors: RouteInterceptors[];
+  metadata?: string;
 };
 
-export type ImportMap = Record<string, ImportMapEntry>;
+export type ImportMap = Record<string, RouteImportMapEntry>;
 
 export type PageProps<
   Data = unknown,
@@ -109,9 +122,69 @@ export type ComposeRouteTypes<
   Params extends Record<string, string> = Record<string, string>
 > = {
   Loader: Loader<Data, Params>;
-  PagaProps: PageProps<Data, Params>;
+  PageProps: PageProps<Data, Params>;
 };
 
 export type CollectionsMap = import("./generated/generated.ts").CollectionsMap;
-export type CollectionEntry =
-  import("./generated/generated.ts").CollectionEntry;
+
+export type LayoutProps<
+  Data = unknown,
+  Params extends Record<string, string> = Record<string, string>
+> = PageProps<Data, Params> & {
+  children: JSX.Element;
+};
+export type Layout = (props: LayoutProps) => VNode;
+
+export type LayoutModule = {
+  loader?: Loader;
+  default: Layout;
+};
+
+export type MiddlewareModule = {
+  handler: (req: Request) => Promise<Response | void> | Response | void;
+};
+
+export type Metadata = {
+  title?: string;
+  description?: string;
+};
+
+export type MetadataModule = {
+  default: Metadata;
+};
+
+export type CollectionsConfigEntry = {
+  schema: ZodSchema;
+};
+
+export type CollectionsConfig = Record<string, CollectionsConfigEntry>;
+
+export type CollectionsConfigMod = {
+  config: CollectionsConfig;
+};
+
+export type MDXComponentProps = { metadata: DefaultCollectionMetadata };
+
+export type DefaultCollectionMetadata = Record<string, unknown>;
+
+export type CollectionsAllProviderChildrenProps<M = DefaultCollectionMetadata> =
+  {
+    entryName: string;
+    metadata: M;
+  };
+
+export type CollectionsAllProvider<
+  M extends DefaultCollectionMetadata = DefaultCollectionMetadata
+> = ComponentType<{
+  children: (props: CollectionsAllProviderChildrenProps<M>) => VNode;
+}>;
+
+export type RelativePath = string;
+export type AbsolutePath = string;
+export type FileName = string;
+
+export type Interceptors = {
+  hash: string;
+  middleware?: string;
+  layout?: string;
+};

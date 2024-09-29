@@ -1,12 +1,10 @@
-import { toFileUrl } from "@std/path";
-import type { Manifest } from "./types.ts";
-import { isAbsolute, resolve } from "@std/path";
-import { isFileUrl } from "./utils.ts";
+import { resolve, toFileUrl, isAbsolute } from "@std/path";
+import type { Manifest } from "../types.ts";
 
 export class FsContext {
   private readonly absBaseUrl: string;
   constructor(private manifest: Manifest) {
-    if (isFileUrl(manifest.baseUrl)) {
+    if (manifest.baseUrl.startsWith("file://")) {
       this.absBaseUrl = new URL(".", manifest.baseUrl).pathname;
     } else if (isAbsolute(manifest.baseUrl)) {
       this.absBaseUrl = new URL(".", toFileUrl(manifest.baseUrl)).pathname;

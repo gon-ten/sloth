@@ -4,5 +4,5 @@ export const Link = ({
   className,
   ...otherProps
 }: JSX.HTMLAttributes<HTMLAnchorElement>) => {
-  return <a className={`text-blue-500 ${className}`} {...otherProps} />;
+  return <a className={`text-xs ${className}`} {...otherProps} />;
 };

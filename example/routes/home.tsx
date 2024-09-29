@@ -1,7 +1,6 @@
-import type { FunctionComponent } from "preact";
 import { Link } from "@/🧱/Link.tsx";
 
-const Home: FunctionComponent = () => {
+const Home = () => {
   return (
     <div>
       Home

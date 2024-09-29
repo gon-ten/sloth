@@ -1,12 +1,12 @@
-import type { PageProps } from "@gdiezpa/blog/runtime";
+import type { PageProps } from '@gdiezpa/blog/runtime';
 
 type Params = {
   lang: string;
 };
 
 const flagMap: Record<string, string> = {
-  es: "🇪🇸",
-  us: "🇺🇸",
+  es: '🇪🇸',
+  us: '🇺🇸',
 };
 
 export default function Lang({ params }: PageProps<void, Params>) {
@@ -14,7 +14,7 @@ export default function Lang({ params }: PageProps<void, Params>) {
   return (
     <div>
       Your language is <code>{lang}</code>
-      <div className="text-9xl">{flagMap[lang] ?? "️🌍"}</div>
+      <div className='text-9xl'>{flagMap[lang] ?? '️🌍'}</div>
     </div>
   );
 }
