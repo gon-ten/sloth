@@ -1,9 +1,6 @@
 export {};
 
 declare global {
-  interface ImportMeta {
-    env: {
-      IS_BROWSER: boolean;
-    };
-  }
+  // deno-lint-ignore no-var
+  var BUILD_TIME: boolean;
 }

@@ -1,75 +1,87 @@
-import { exists } from "@std/fs";
-import * as colors from "@std/fmt/colors";
-import * as esbuild from "esbuild";
-import { denoPlugins } from "@luca/esbuild-deno-loader";
-import { FsContext } from "../server/fs_context.ts";
-import { createDirectoryIfNotExists } from "../utils/fs.ts";
+import tailwindCss, { type Config } from 'tailwindcss';
+import postcss from 'postcss';
+import cssnano from 'cssnano';
+import autoprefixer from 'autoprefixer';
+import { exists, walk } from '@std/fs';
+import * as colors from '@std/fmt/colors';
+import { FsContext } from '../lib/fs_context.ts';
+import { dirname, join, relative, toFileUrl } from '@std/path';
 
-export async function bundleStyles(fsContext: FsContext) {
-  const tailwindConfigPath = fsContext.resolvePath("tailwind.config.js");
+// TODO: Decouple from main logic. Plugin system?
+export async function bundleStyles(
+  fsContext: FsContext,
+  opts?: { mode: 'development' | 'production' },
+) {
+  const { mode = 'development' } = opts ?? {};
 
-  const result = await esbuild.build({
-    plugins: [
-      ...denoPlugins({
-        configPath: fsContext.resolvePath("./deno.json"),
-      }),
-    ],
-    entryPoints: [tailwindConfigPath],
-    write: false,
-    bundle: true,
-    target: "es2022",
-    format: "esm",
-  });
-
-  const [outputFile] = result.outputFiles;
-
-  await createDirectoryIfNotExists(fsContext.resolveFromOutDir("config"));
-
-  const tailwindConfigBundledPath = fsContext.resolveFromOutDir(
-    "config",
-    "tailwind.config.cooked.js"
-  );
-  await Deno.writeFile(tailwindConfigBundledPath, outputFile.contents);
-
-  const indexCssPath = fsContext.resolvePath("index.css");
-
-  let inputArg: string[] = [];
-  const indexCssExists = await exists(indexCssPath);
-  if (indexCssExists) {
-    inputArg = ["-i", indexCssPath];
+  let tailwindConfigPath: string | undefined;
+  for await (
+    const entry of walk(fsContext.resolvePath('.'), {
+      match: [/tailwind.config.(j|t)s/i],
+    })
+  ) {
+    tailwindConfigPath = entry.path;
+    break;
   }
 
-  const outFile = fsContext.resolveFromOutDir("static", "styles.css");
+  if (!tailwindConfigPath) {
+    throw new Error('tailwind config file was not found');
+  }
 
-  const cssCmd = new Deno.Command(Deno.execPath(), {
-    args: [
-      "run",
-      "--allow-ffi",
-      "--allow-sys",
-      "--allow-env",
-      "--allow-write",
-      "--allow-read",
-      "npm:tailwindcss@^3.4.1",
-      "-c",
-      tailwindConfigBundledPath,
-      ...inputArg,
-      "-o",
-      outFile,
-    ],
-    stdout: "piped",
-    stderr: "piped",
-    cwd: fsContext.resolvePath("."),
-  });
+  const indexCssPath = fsContext.resolvePath('index.css');
 
-  const cp = cssCmd.spawn();
-  const { success, stderr } = await cp.output();
+  let content: string = '';
 
-  if (!success) {
-    console.warn(
-      colors.red(`⨯ CSS bundling process failed. Reason:`),
-      new TextDecoder().decode(stderr)
-    );
+  const indexCssExists = await exists(indexCssPath);
+  if (indexCssExists) {
+    content = await Deno.readTextFile(indexCssPath);
   } else {
+    content = `
+      @tailwind base;
+      @tailwind components;
+      @tailwind utilities;
+    `;
+  }
+
+  const config = (await import(toFileUrl(tailwindConfigPath).href))
+    .default as Config;
+
+  if (Array.isArray(config.content)) {
+    config.content = config.content.map((entry) => {
+      if (typeof entry === 'string') {
+        const baseDir = relative(Deno.cwd(), dirname(tailwindConfigPath));
+        return join(baseDir, entry);
+      }
+      return entry;
+    });
+  }
+
+  const plugins = [
+    // deno-lint-ignore no-explicit-any
+    tailwindCss(config) as any,
+    // deno-lint-ignore no-explicit-any
+    autoprefixer() as any,
+  ];
+
+  if (mode === 'production') {
+    plugins.push(cssnano());
+  }
+
+  const processor = postcss(plugins);
+
+  const outFile = fsContext.resolveFromOutDir('static', 'styles.css');
+
+  try {
+    const result = await processor.process(
+      content,
+      {
+        from: 'index.css',
+        to: 'styles.css',
+      },
+    );
+    await Deno.writeTextFile(outFile, result.css);
     console.log(colors.green(`✔️ CSS bundling process succeeded`));
+  } catch (err) {
+    console.log(colors.red(`⨯ CSS bundling process failed\n`), err);
   }
 }

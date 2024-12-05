@@ -1,16 +1,41 @@
-import { z } from "zod";
+import * as v from '@valibot/valibot';
+import { type CollectionsConfig } from '@sloth/core/content';
+
+const sourceSchema = v.array(
+  v.object({
+    srcSet: v.string(),
+    type: v.optional(v.string()),
+    width: v.optional(v.number()),
+    height: v.optional(v.number()),
+  }),
+);
 
 export const config = {
-  "blogs*": {
-    schema: z.object({
-      title: z.string(),
-      image: z.object({
-        src: z.string(),
-        srcSet: z.string().optional(),
-        alt: z.string(),
-        caption: z.string().optional(),
-      }),
-      tags: z.array(z.string()),
+  'blogs*': {
+    schema: v.object({
+      title: v.string(),
+      description: v.optional(v.string()),
+      heroImage: v.object(
+        {
+          alt: v.string(),
+          caption: v.optional(v.string()),
+          sources: v.optional(
+            v.object({
+              md: sourceSchema,
+              sm: sourceSchema,
+              lg: sourceSchema,
+            }),
+          ),
+          defaultSource: v.object({
+            src: v.string(),
+            width: v.optional(v.number()),
+            height: v.optional(v.number()),
+          }),
+          thumbnail: v.optional(sourceSchema),
+        },
+      ),
+      tags: v.array(v.string()),
+      publishingDate: v.date(),
     }),
   },
-} as const;
+} satisfies CollectionsConfig;

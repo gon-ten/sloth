@@ -1,20 +1,63 @@
-import type { VNode, ComponentType } from "preact";
-import type { JSX } from "preact";
-import type { ZodSchema } from "zod";
+import type { ComponentType, VNode } from 'preact';
+import * as v from '@valibot/valibot';
+import { metadataSchema } from './server/metadata.ts';
+import { Plugin } from './plugins/core/types.ts';
+
+const HTTP_METHOD = ['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'PATCH'] as const;
+
+export type HttpMethod = typeof HTTP_METHOD[number];
+
+export type RenderContext<D extends unknown, S extends unknown> = {
+  state: S;
+  renderNotFound(): Response;
+  next: (error?: Error) => Promise<Response>;
+  render: (data: D) => Promise<Response>;
+  renderLayout: (data: D) => void;
+};
+
+export type Mode = 'development' | 'production';
+
+export type BaseConfig = {
+  plugins?: Plugin[];
+};
 
 export type Manifest = {
+  importMeta: ImportMeta;
+  routes: {
+    [path: string]: [
+      hash: string,
+      mod: unknown,
+    ];
+  };
+  collections: {
+    config: CollectionsConfigMod;
+  };
+};
+
+export type AppConfigDev = {
   baseUrl: string;
-  ssrOnly?: boolean;
+  entryPoint: string;
+  config: BaseConfig;
+  plugins: Plugin[];
 };
 
-export type RootProps = {
+export type AppConfig = {
+  manifest: Manifest;
+};
+
+export type RootProps<S extends unknown> = {
   Metadata: ComponentType;
-  links: JSX.Element | JSX.Element[];
-  children: JSX.Element;
+  Links: ComponentType;
+  Component: ComponentType;
+  state: RenderContext<never, S>['state'];
 };
 
-export type RootModule = {
-  default: ComponentType<RootProps>;
+export type RobotsModule = {
+  default: (req: Request) => Response | Promise<Response>;
+};
+
+export type RootModule<S = unknown> = {
+  default: ComponentType<RootProps<S>>;
 };
 
 export type PostsBarrelExport = {
@@ -26,85 +69,68 @@ export type HandlerContext<Data extends unknown = unknown> = {
   renderNotFound(): Promise<Response> | Response;
 };
 
-export type RouteHandler<Data extends unknown = unknown> = (
-  req: Request,
-  ctx: HandlerContext<Data>
-) => Response | Promise<Response> | void | Promise<void>;
+export type GenerateMetadataFunction<
+  Params extends Record<string, string> = Record<string, string>,
+> = (args: { req: Request; params: Params }) => Metadata | Promise<Metadata>;
 
-export const httpMethods = [
-  "GET",
-  "POST",
-  "PUT",
-  "DELETE",
-  "HEAD",
-  "OPTIONS",
-  "PATCH",
-] as const;
-
-export type HttpMethod = (typeof httpMethods)[number];
-
-export type RouteHandlers<Data extends unknown = unknown> = Partial<
-  Record<HttpMethod, RouteHandler<Data>>
->;
-
-export type RouteConfig = {
-  skipInheritedLayouts?: boolean;
-};
-
-export type RouteModule = {
-  config?: RouteConfig;
-  metadata?: Metadata;
-  loader?: () => Promise<unknown> | unknown;
-  default: () => VNode;
-};
+export type ValidMetadata = Metadata | GenerateMetadataFunction;
 
 export type PageModule = {
-  config?: RouteConfig;
+  metadata?: ValidMetadata;
+  pageConfig?: PageConfig;
+  loader?: Loader;
   default: (props: PageProps) => VNode;
 };
 
-export type LoaderFunction = (args: {
-  request: Request;
-  params: Record<string, string>;
-}) => Promise<unknown>;
+export type InferLoaderReturnType<C extends () => Promise<unknown>> = C extends
+  () => Promise<infer T> ? T : never;
 
-export type LoaderModule = {
-  default: LoaderFunction;
-};
-
-export type InferLoaderReturnType<C extends () => Promise<unknown>> =
-  C extends () => Promise<infer T> ? T : never;
-
-type RouteInterceptors = {
+export type RouteInterceptors = {
   hash: string;
   middleware?: string;
   layout?: string;
 };
 
 export type RouteImportMapEntry = {
+  path: string;
   hash: string;
-  hydration: string;
-  component: string;
-  loader?: string;
+  hydration?: string;
   interceptors: RouteInterceptors[];
-  metadata?: string;
 };
+
+export type InterceptorsMap = Map<RelativePath, Interceptors>;
 
 export type ImportMap = Record<string, RouteImportMapEntry>;
 
 export type PageProps<
   Data = unknown,
-  Params extends Record<string, string> = Record<string, string>
+  Params extends Record<string, string> = Record<string, string>,
 > = {
   url: string;
   data: Data;
   params: Params;
+  pageConfig: Pick<PageConfig, 'ssrOnly'>;
 };
+
+export type LayoutLoader<
+  Data = unknown,
+  Params extends UnknownParams = Record<string, string>,
+  State = unknown,
+> = (params: {
+  req: Request;
+  params: Params;
+  ctx: Omit<RenderContext<Data, State>, 'render'>;
+}) => Response | Promise<Response>;
 
 export type Loader<
   Data = unknown,
-  Params extends Record<string, string> = Record<string, string>
-> = (params: { request: Request; params: Params }) => Promise<Data>;
+  Params extends UnknownParams = Record<string, string>,
+  State = unknown,
+> = (params: {
+  req: Request;
+  params: Params;
+  ctx: Omit<RenderContext<Data, State>, 'renderLayout'>;
+}) => Response | Promise<Response>;
 
 export type CookedFiles = string[];
 
@@ -119,42 +145,40 @@ export type InferArrayType<A extends Array<unknown>> = A extends Array<infer T>
 
 export type ComposeRouteTypes<
   Data = unknown,
-  Params extends Record<string, string> = Record<string, string>
+  Params extends UnknownParams = Record<string, string>,
 > = {
   Loader: Loader<Data, Params>;
   PageProps: PageProps<Data, Params>;
 };
 
-export type CollectionsMap = import("./generated/generated.ts").CollectionsMap;
+export type UnknownParams = Record<string, string>;
 
 export type LayoutProps<
   Data = unknown,
-  Params extends Record<string, string> = Record<string, string>
+  Params extends UnknownParams = Record<string, string>,
 > = PageProps<Data, Params> & {
-  children: JSX.Element;
+  Component: ComponentType;
 };
 export type Layout = (props: LayoutProps) => VNode;
 
 export type LayoutModule = {
-  loader?: Loader;
+  loader?: LayoutLoader;
   default: Layout;
 };
 
+export type Middleware<State = unknown> = (params: {
+  req: Request;
+  ctx: RenderContext<unknown, State>;
+}) => Promise<Response> | Response;
+
 export type MiddlewareModule = {
-  handler: (req: Request) => Promise<Response | void> | Response | void;
+  handler: Middleware;
 };
 
-export type Metadata = {
-  title?: string;
-  description?: string;
-};
-
-export type MetadataModule = {
-  default: Metadata;
-};
+export type Metadata = v.InferOutput<typeof metadataSchema>;
 
 export type CollectionsConfigEntry = {
-  schema: ZodSchema;
+  schema: v.BaseSchema<unknown, unknown, v.BaseIssue<unknown>>;
 };
 
 export type CollectionsConfig = Record<string, CollectionsConfigEntry>;
@@ -163,18 +187,28 @@ export type CollectionsConfigMod = {
   config: CollectionsConfig;
 };
 
-export type MDXComponentProps = { metadata: DefaultCollectionMetadata };
+export type MDXComponentProps = {
+  metadata: DefaultCollectionMetadata;
+  // deno-lint-ignore no-explicit-any
+  components?: Record<string, ComponentType<any>>;
+};
 
 export type DefaultCollectionMetadata = Record<string, unknown>;
 
+export type CollectionToc = Array<{
+  content: string;
+  deep: number;
+  hash: string;
+}>;
+
 export type CollectionsAllProviderChildrenProps<M = DefaultCollectionMetadata> =
   {
-    entryName: string;
+    name: string;
     metadata: M;
   };
 
 export type CollectionsAllProvider<
-  M extends DefaultCollectionMetadata = DefaultCollectionMetadata
+  M extends DefaultCollectionMetadata = DefaultCollectionMetadata,
 > = ComponentType<{
   children: (props: CollectionsAllProviderChildrenProps<M>) => VNode;
 }>;
@@ -187,4 +221,69 @@ export type Interceptors = {
   hash: string;
   middleware?: string;
   layout?: string;
+};
+
+type ValidateShape = {
+  params?: v.BaseSchema<unknown, unknown, v.BaseIssue<unknown>>;
+};
+
+type ReadonlyNonEmptyArray<T> = readonly [T, ...T[]];
+
+export type PageConfig = {
+  allowedMethods?: ReadonlyNonEmptyArray<HttpMethod>;
+  ssrOnly?: boolean;
+  skipInheritedLayouts?: boolean;
+  defineValidationSchemas?: () => ValidateShape;
+};
+
+type ValidationKeys = keyof NonNullable<ValidateShape>;
+
+export type InferValidateOptions<
+  C extends PageConfig,
+  K extends ValidationKeys,
+> = C extends never ? never
+  : C['defineValidationSchemas'] extends () => ValidateShape
+    ? ReturnType<C['defineValidationSchemas']>[K] extends v.BaseSchema<
+      unknown,
+      unknown,
+      v.BaseIssue<unknown>
+    > ? v.InferOutput<ReturnType<C['defineValidationSchemas']>[K]>
+    : never
+  : never;
+
+export type CollectionName = string;
+
+export type CollectionsMap = {
+  [key: string]: {
+    entries: string;
+    metadata: v.InferOutput<v.AnySchema>;
+    Content: ComponentType<unknown>;
+    toc: CollectionToc;
+  };
+};
+
+export type GetCollectionEntryResult<C extends CollectionName> = Pick<
+  CollectionsMap[C],
+  'metadata' | 'Content' | 'toc'
+>;
+
+export type GetAllCollectionEntriesResult<C extends CollectionName> = {
+  Provider: CollectionsAllProvider<CollectionsMap[C]['metadata']>;
+};
+export interface Collection<C extends CollectionName> {
+  get(
+    entryName: string,
+  ): GetCollectionEntryResult<C>;
+  all(collectionName: C): GetAllCollectionEntriesResult<C>;
+  has(entryName: string): boolean;
+}
+
+export type GetCollectionFn = <C extends CollectionName>(
+  collectionName: C,
+) => Collection<C>;
+
+export type CollectionMapEntry = {
+  metadata: DefaultCollectionMetadata;
+  Content: ComponentType<MDXComponentProps>;
+  toc: CollectionToc;
 };

@@ -1,4 +1,4 @@
-import * as colors from "@std/fmt/colors";
+import * as colors from '@std/fmt/colors';
 
 export async function formatFiles({
   entryFiles,
@@ -8,9 +8,9 @@ export async function formatFiles({
   target: string;
 }) {
   const fmtCmd = new Deno.Command(Deno.execPath(), {
-    args: ["fmt", "-q", ...entryFiles],
-    stderr: "piped",
-    stdout: "null",
+    args: ['fmt', '-q', ...entryFiles],
+    stderr: 'piped',
+    stdout: 'null',
   });
   const cp = fmtCmd.spawn();
   const { success, stderr } = await cp.output();
@@ -18,7 +18,7 @@ export async function formatFiles({
     success
       ? colors.green(`✔️ ${target}: output files formatted correctly.`)
       : colors.red(
-          `⨯ ${target} there was an error during file formatting. ${stderr}`
-        )
+        `⨯ ${target} there was an error during file formatting. ${stderr}`,
+      ),
   );
 }

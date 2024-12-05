@@ -1,21 +1,44 @@
-import type { LayoutProps } from "@sloth/core/runtime";
-import { Link } from "@/🧱/Link.tsx";
+import type { LayoutLoader, LayoutProps, UnknownParams } from '@sloth/core';
+import { Image } from '@sloth/core/runtime';
+import { Backdrop } from '@/🧱/Backdrop.tsx';
+import { LayoutRow } from '@/🧱/LayoutRow.tsx';
+import type { AppState } from '../types.ts';
+import { ThemeContext, ThemeSelector } from '@/🧱/ThemeSelector.tsx';
 
-export default function BaseLayout({ children }: LayoutProps) {
+type Data = Pick<AppState, 'theme'>;
+
+export const loader: LayoutLoader<Data, UnknownParams, AppState> = (
+  { ctx },
+) => {
+  ctx.renderLayout({
+    theme: ctx.state.theme,
+  });
+  return ctx.next();
+};
+
+export default function HomeLayout({ Component, data }: LayoutProps<Data>) {
   return (
-    <>
-      <div className="w-screen h-screen overflow-auto">
-        <header className="sticky top-0 bg-white border-b border-neutral-200">
-          <div className="h-10 bg-red-500 container mx-auto">
-            <nav className="h-full flex flex-row items-center gap-2">
-              <Link href="/about">About</Link>
-              <Link href="/home">Home</Link>
-              <Link href="/blog">Blog</Link>
-            </nav>
+    <ThemeContext.Provider value={data.theme}>
+      <Backdrop />
+      <div className='relative flex w-full flex-col'>
+        <LayoutRow className='mt-8'>
+          <div className='flex flex-row h-[56px] items-center justify-between '>
+            <a href='/'>
+              <Image
+                width={115}
+                height={56}
+                loading='lazy'
+                decoding='async'
+                srcSet='/images/logo.avif 1x'
+                alt='Brand logo'
+                priority
+              />
+            </a>
+            <ThemeSelector />
           </div>
-        </header>
-        <main className="text-sm bg-green-500">{children}</main>
+        </LayoutRow>
+        <Component />
       </div>
-    </>
+    </ThemeContext.Provider>
   );
 }

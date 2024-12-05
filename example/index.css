@@ -3,51 +3,76 @@
 @tailwind utilities;
 
 .code-line {
-  padding-left: 12px;
+  @apply pl-1;
 }
 
 span.code-line {
-  display: inline-block;
-  width: 100%;
-}
-
-.code-line.inserted {
-  background-color: #16a34a55;
-}
-
-.code-line.deleted {
-  background-color: #dc262655;
+  @apply inline-block w-full;
 }
 
 .highlighted-code-line {
-  background-color: theme("colors.white" / 10%);
+  background-color: theme('colors.white' / 10%);
+}
+
+.code-snippet {
+  @apply relative;
+}
+
+.code-snippet-title {
+  @apply px-3 pb-2 mb-2 border-b border-white border-opacity-10 text-xs;
+}
+
+.copy-code-snippet {
+  @apply top-2 right-3 absolute text-xs px-3 py-0.5 min-w-20 rounded inline-flex
+    items-center justify-center from-neutral-500 to-neutral-600 bg-gradient-to-b
+    text-neutral-100 shadow-bezel hover:from-neutral-600 hover:to-neutral-700
+    active:from-neutral-700 active:to-neutral-800 disabled:from-neutral-100
+    disabled:to-neutral-100 disabled:shadow-none disabled:text-neutral-400
+    print:hidden;
+}
+
+.copy-code-snippet.copied {
+  /* purposely ignored */
+}
+
+.collection-heading {
+  @apply flex items-center;
+}
+
+/*
+.collection-image {}
+*/
+
+.collection-heading button {
+  @apply ml-2 invisible;
+}
+
+.collection-heading:hover button {
+  @apply visible;
 }
 
 .numbered-code-line::before {
   content: attr(data-line-number);
-  padding-right: 1rem;
-  width: 1.5rem;
-  text-align: right;
-  display: inline-block;
+  @apply pr-3 w-10 text-right inline-block;
 }
 
 :root {
-  --color-text: theme("colors.gray.300");
+  --color-text: theme('colors.gray.300');
   --color-background: transparent;
-  --color-keyword: theme("colors.red.400");
-  --color-entity: theme("colors.purple.300");
-  --color-constant: theme("colors.blue.300");
-  --color-string: theme("colors.blue.200");
-  --color-variable: theme("colors.orange.400");
-  --color-comment: theme("colors.gray.500");
-  --color-entity-tag: theme("colors.green.400");
-  --color-storage-modifier: theme("colors.gray.300");
-  --color-markup-heading: theme("colors.blue.600");
-  --color-markup-list: theme("colors.yellow.400");
-  --color-markup-italic: theme("colors.gray.300");
-  --color-markup-bold: theme("colors.gray.300");
-  --color-markup-inserted: theme("colors.green.300");
-  --color-markup-deleted: theme("colors.red.100");
+  --color-keyword: theme('colors.red.400');
+  --color-entity: theme('colors.purple.300');
+  --color-constant: theme('colors.blue.300');
+  --color-string: theme('colors.blue.200');
+  --color-variable: theme('colors.orange.400');
+  --color-comment: theme('colors.gray.500');
+  --color-entity-tag: theme('colors.green.400');
+  --color-storage-modifier: theme('colors.gray.300');
+  --color-markup-heading: theme('colors.blue.600');
+  --color-markup-list: theme('colors.yellow.400');
+  --color-markup-italic: theme('colors.gray.300');
+  --color-markup-bold: theme('colors.gray.300');
+  --color-markup-inserted: theme('colors.green.300');
+  --color-markup-deleted: theme('colors.red.100');
 }
 
 .hljs {
@@ -136,8 +161,16 @@ span.code-line {
   color: var(--color-markup-inserted);
 }
 
+.code-line.inserted {
+  background-color: #16a34a55;
+}
+
 .hljs-deletion {
   color: var(--color-markup-deleted);
+}
+
+.code-line.deleted {
+  background-color: #dc262655;
 }
 
 .hljs-char.escape_,
@@ -147,4 +180,19 @@ span.code-line {
 .hljs-punctuation,
 .hljs-tag {
   /* purposely ignored */
+}
+
+@layer utilities {
+  .text-default {
+    @apply text-zinc-800 dark:text-zinc-100;
+  }
+  .text-default-secondary {
+    @apply text-zinc-600 dark:text-zinc-400;
+  }
+  .text-primary {
+    @apply text-jade-400 dark:text-jade-600;
+  }
+  .border-default {
+    @apply border-zinc-100 dark:border-zinc-700/40;
+  }
 }
