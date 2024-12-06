@@ -8,7 +8,10 @@ await dev({
   config,
   plugins: [
     PluginTailwind({
+      configFile: './tailwind.config.ts',
+      include: ['./**/*.css'],
       mode: 'development',
+      outFile: 'styles.css',
     }),
   ],
 });

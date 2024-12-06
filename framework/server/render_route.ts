@@ -240,12 +240,7 @@ export async function renderRoute({
       ]
       : [];
 
-    const linksContextValue: LinksProps[] = [
-      {
-        rel: 'stylesheet',
-        href: '/static/styles.css',
-      },
-    ];
+    const linksContextValue: LinksProps[] = [];
 
     if (!pageConfig.ssrOnly) {
       linksContextValue.push({

@@ -17,6 +17,7 @@ export default function Root(
         <meta charset='UTF-8' />
         <meta name='viewport' content='width=device-width, initial-scale=1.0' />
         <Metadata />
+        <link rel='stylesheet' href='/static/styles.css' />
         <Links />
       </head>
       <body className='h-full bg-zinc-50 dark:bg-black'>

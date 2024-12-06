@@ -3,59 +3,45 @@ import tailwindCss, { type Config } from 'tailwindcss';
 import postcss from 'postcss';
 import cssnano from 'cssnano';
 import autoprefixer from 'autoprefixer';
-import { exists, walk } from '@std/fs';
 import * as colors from '@std/fmt/colors';
-import { dirname, join, relative, toFileUrl } from '@std/path';
+import { expandGlob } from '@std/fs/expand-glob';
+import { EOL } from '@std/fs/eol';
+import { join } from '@std/path/join';
+import { withTempFile } from '../utils/with_temp_file.ts';
+
+const OUT_FILE_NAME = 'styles.css';
 
 const resolveInCwd = (path: string) => join(Deno.cwd(), path);
 
+async function readConfigFile(path: string): Promise<Config> {
+  const mod = await import(path);
+  return mod.default as Config;
+}
+
+async function readFiles(include: string[]): Promise<string> {
+  let result = '';
+
+  for (const expr of include) {
+    for await (const file of expandGlob(expr)) {
+      result += EOL + await Deno.readTextFile(file.path);
+    }
+  }
+
+  return result;
+}
+
 async function bundleStyles(
-  opts?: { mode: 'development' | 'production' },
-): Promise<string | undefined> {
+  {
+    config,
+    opts,
+    content,
+  }: {
+    content: string;
+    config: Config;
+    opts?: { mode: 'development' | 'production' };
+  },
+): Promise<string> {
   const { mode = 'development' } = opts ?? {};
-
-  let tailwindConfigPath: string | undefined;
-
-  for await (
-    const entry of walk(resolveInCwd('.'), {
-      match: [/tailwind.config.(j|t)s/i],
-    })
-  ) {
-    tailwindConfigPath = entry.path;
-    break;
-  }
-
-  if (!tailwindConfigPath) {
-    throw new Error('tailwind config file was not found');
-  }
-
-  const indexCssPath = resolveInCwd('index.css');
-
-  let content: string = '';
-
-  const indexCssExists = await exists(indexCssPath);
-  if (indexCssExists) {
-    content = await Deno.readTextFile(indexCssPath);
-  } else {
-    content = `
-      @tailwind base;
-      @tailwind components;
-      @tailwind utilities;
-    `;
-  }
-
-  const config = (await import(toFileUrl(tailwindConfigPath).href))
-    .default as Config;
-
-  if (Array.isArray(config.content)) {
-    config.content = config.content.map((entry) => {
-      if (typeof entry === 'string') {
-        const baseDir = relative(Deno.cwd(), dirname(tailwindConfigPath));
-        return join(baseDir, entry);
-      }
-      return entry;
-    });
-  }
 
   const plugins = [
     // deno-lint-ignore no-explicit-any
@@ -70,42 +56,52 @@ async function bundleStyles(
 
   const processor = postcss(plugins);
 
-  try {
-    const outFile = await Deno.makeTempFile();
-    const result = await processor.process(
-      content,
-      {
-        from: 'index.css',
-        to: 'styles.css',
-      },
-    );
-    await Deno.writeTextFile(outFile, result.css);
-    console.log(colors.green(`✔️ CSS bundling process succeeded`));
-    return outFile;
-  } catch (err) {
-    console.log(colors.red(`⨯ CSS bundling process failed\n`), err);
-  }
+  const result = await processor.process(
+    content,
+    {
+      from: 'source.css',
+      to: OUT_FILE_NAME,
+    },
+  );
+  return result.css;
 }
 
 export type PluginTailwindOptions = {
+  configFile: string;
+  include: string[];
   mode?: 'development' | 'production';
+  outFile?: string;
 };
 
-export const PluginTailwind: (opts?: PluginTailwindOptions) => Plugin = (
+export const PluginTailwind: (opts: PluginTailwindOptions) => Plugin = (
   opts,
 ) => {
-  const { mode = 'production' } = opts ?? {};
+  const { mode = 'production', configFile, outFile = OUT_FILE_NAME } = opts ??
+    {};
+
+  if (outFile.length === 0) {
+    throw new TypeError('The outFile option must be a non-empty string');
+  }
+
   return {
     name: 'sloth-tailwind',
     setup: async (builder) => {
       builder.wg.add(1);
       try {
-        const outFile = await bundleStyles({ mode });
-        if (outFile) {
-          await builder.copyStaticAsset(outFile, 'styles.css');
-        }
+        const config = await readConfigFile(resolveInCwd(configFile));
+        const content = await readFiles(opts.include);
+        await withTempFile(async (tempFile) => {
+          const result = await bundleStyles({
+            config,
+            content,
+            opts: { mode },
+          });
+          await Deno.writeTextFile(tempFile, result);
+          await builder.copyStaticAsset(tempFile, outFile);
+        });
+        console.log(colors.green(`✔️ CSS bundling process succeeded`));
       } catch (error) {
-        console.error('Error in tailwind plugin', error);
+        console.log(colors.red(`⨯ CSS bundling process failed\n`), error);
       } finally {
         builder.wg.done();
       }
