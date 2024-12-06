@@ -88,6 +88,10 @@ export class ServerCollection<C extends CollectionName>
   has(entryName: keyof CollectionsMap[C] | (string & {})): boolean {
     return Reflect.has(this.#getCollection(), entryName);
   }
+
+  keys(): string[] {
+    return Object.keys(this.#getCollection());
+  }
 }
 
 type GetCollection = <C extends CollectionName>(

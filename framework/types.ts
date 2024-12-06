@@ -270,12 +270,14 @@ export type GetCollectionEntryResult<C extends CollectionName> = Pick<
 export type GetAllCollectionEntriesResult<C extends CollectionName> = {
   Provider: CollectionsAllProvider<CollectionsMap[C]['metadata']>;
 };
+
 export interface Collection<C extends CollectionName> {
   get(
     entryName: string,
   ): GetCollectionEntryResult<C>;
   all(collectionName: C): GetAllCollectionEntriesResult<C>;
   has(entryName: string): boolean;
+  keys(): string[];
 }
 
 export type GetCollectionFn = <C extends CollectionName>(

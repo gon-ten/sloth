@@ -30,6 +30,7 @@ interface Collection<C extends CollectionName> {
     Provider: CollectionsAllProvider<_CollectionsMap[C]['metadata']>;
   };
   has(entryName: _CollectionsMap[C]['entries'] | (string & {})): boolean;
+  keys(): _CollectionsMap[C]['entries'][];
 }
 
 declare module '@sloth/core/content' {

@@ -93,6 +93,22 @@ export class BrowserCollection<C extends CollectionName>
 
     return collection.some(({ name }) => name === entryName);
   }
+
+  keys(): string[] {
+    const dataContainer = document.querySelector(
+      `script[type="${HYDRATION_SCRIPT_TYPE}"][${DATA_COLLECTION_NAME_ATTRIBUTE}="${this.#collectionName}"]`,
+    );
+
+    let collection: CollectionsAllProviderChildrenProps[] = [];
+
+    if (dataContainer) {
+      collection = dataContainer.textContent
+        ? JSON.parse(dataContainer.textContent)
+        : collection;
+    }
+
+    return collection.map(({ name }) => name);
+  }
 }
 
 export function getCollection<C extends CollectionName>(collectionName: C) {
