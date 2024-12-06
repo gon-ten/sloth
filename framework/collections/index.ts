@@ -27,8 +27,11 @@ import type {
   DefaultCollectionMetadata,
   MDXComponentProps,
 } from '../types.ts';
-import { createHash } from '../utils/crypto.ts';
-import { createDirectoryIfNotExists, fileNameWithNoExt } from '../utils/fs.ts';
+import {
+  checksum,
+  createDirectoryIfNotExists,
+  fileNameWithNoExt,
+} from '../utils/fs.ts';
 import { loadModule } from '../utils/load_module.ts';
 import CodeBlockMetadataRehypePlugin from './rehype-plugins/code-block-metadata.ts';
 import ImageSizeRehypePlugin from './rehype-plugins/image-size.ts';
@@ -93,7 +96,7 @@ export async function buildCollections(
     }
   > = {};
   for await (const file of fsContext.walkCollections()) {
-    const hash = createHash();
+    const hash = await checksum(file.path);
     const content = await Deno.readTextFile(file.path);
 
     let bodyToCompile = content;

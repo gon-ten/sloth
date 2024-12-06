@@ -12,14 +12,13 @@ import {
   RouteImportMapEntry,
 } from './types.ts';
 import { relative } from '@std/path/relative';
-import { createHash } from './utils/crypto.ts';
 import { exists } from '@std/fs/exists';
 import { EOL } from '@std/fs/eol';
 import { formatFiles } from './utils/fmt.ts';
 import { toFileUrl } from '@std/path/to-file-url';
 import { buildCollections } from './collections/index.ts';
 import { Builder } from './plugins/core/builder.ts';
-import { createDirectoryIfNotExists } from './utils/fs.ts';
+import { checksum, createDirectoryIfNotExists } from './utils/fs.ts';
 import {
   extractInterceptors,
   findRouteInterceptors,
@@ -45,9 +44,11 @@ async function generateManifest(
   const castPath = (filePath: string) =>
     '.' + SEPARATOR + relative(rootDir, filePath);
 
-  const routesEntries = routes.map((
-    route,
-  ) => [castPath(route.path), createHash()]);
+  const routesEntries = await Promise.all(
+    routes.map(async (
+      route,
+    ) => [castPath(route.path), await checksum(route.path)]),
+  );
 
   const collectionsConfigFile = fsContext.resolvePath(
     'collections',
@@ -268,7 +269,7 @@ async function createHydrationFile({
     const bootstrapMod = import.meta.resolve('./browser/bootstrap.ts');
     hydrationFilePath = join(outDir, `${hash}.tsx`);
     const hydrationFileContent = `
-    import type { LayoutProps } from "@sloth/core/runtime";
+    import type { LayoutProps } from "@sloth/core";
     import type { ComponentType } from "preact";
     import { bootstrap } from "${bootstrapMod}";
     import { default as Page } from "${toFileUrl(routeFileAbsPath)}";
