@@ -2,7 +2,6 @@
   "version": "4",
   "specifiers": {
     "jsr:@luca/esbuild-deno-loader@0.11.0": "0.11.0",
-    "jsr:@sloth/core@0.0.1-beta.21": "0.0.1-beta.21",
     "jsr:@std/assert@^1.0.6": "1.0.8",
     "jsr:@std/assert@^1.0.8": "1.0.8",
     "jsr:@std/async@^1.0.8": "1.0.9",
@@ -69,37 +68,6 @@
         "jsr:@std/bytes",
         "jsr:@std/encoding@^1.0.5",
         "jsr:@std/path@^1.0.6"
-      ]
-    },
-    "@sloth/core@0.0.1-beta.21": {
-      "integrity": "1eab0ebb03c8f70a3aadfdffd21709d44eb16882fcd68b2aa0ab6c86869080b3",
-      "dependencies": [
-        "jsr:@luca/esbuild-deno-loader",
-        "jsr:@std/collections@^1.0.7",
-        "jsr:@std/crypto",
-        "jsr:@std/encoding@^1.0.3",
-        "jsr:@std/fmt@^1.0.1",
-        "jsr:@std/front-matter",
-        "jsr:@std/fs@^1.0.2",
-        "jsr:@std/http",
-        "jsr:@std/io",
-        "jsr:@std/media-types",
-        "jsr:@std/path@^1.0.3",
-        "jsr:@valibot/valibot",
-        "npm:@mdx-js/mdx",
-        "npm:@sindresorhus/slugify",
-        "npm:autoprefixer",
-        "npm:cssnano",
-        "npm:esbuild-wasm",
-        "npm:image-size",
-        "npm:lowlight",
-        "npm:postcss",
-        "npm:preact",
-        "npm:preact-render-to-string",
-        "npm:rehype-highlight",
-        "npm:rehype-highlight-code-lines",
-        "npm:tailwindcss@^3.4.1",
-        "npm:unist-util-visit"
       ]
     },
     "@std/assert@1.0.6": {
@@ -2665,7 +2633,7 @@
     "members": {
       "example": {
         "dependencies": [
-          "jsr:@sloth/core@0.0.1-beta.21",
+          "jsr:@sloth/core@0.0.2-beta.1",
           "jsr:@std/dotenv@~0.225.1",
           "jsr:@std/fs@^1.0.2",
           "jsr:@std/http@1.0.9",

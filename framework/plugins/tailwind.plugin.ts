@@ -8,13 +8,28 @@ import { expandGlob } from '@std/fs/expand-glob';
 import { EOL } from '@std/fs/eol';
 import { join } from '@std/path/join';
 import { withTempFile } from '../utils/with_temp_file.ts';
+import { toFileUrl } from '@std/path/to-file-url';
+import { relative } from '@std/path/relative';
+import { dirname } from '@std/path/dirname';
 
 const OUT_FILE_NAME = 'styles.css';
 
 const resolveInCwd = (path: string) => join(Deno.cwd(), path);
 
 async function readConfigFile(path: string): Promise<Config> {
-  const mod = await import(path);
+  const mod = await import(toFileUrl(path).href);
+  const config = mod.default as Config;
+
+  if (Array.isArray(config.content)) {
+    config.content = config.content.map((entry) => {
+      if (typeof entry === 'string') {
+        const baseDir = relative(Deno.cwd(), dirname(path));
+        return join(baseDir, entry);
+      }
+      return entry;
+    });
+  }
+
   return mod.default as Config;
 }
 
