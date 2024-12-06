@@ -3,7 +3,7 @@ import { useContext } from 'preact/hooks';
 import { createContext, type FunctionComponent, type JSX } from 'preact';
 
 type Props = {
-  nonce: string;
+  nonce?: string;
 };
 
 export type ScriptProps = JSX.HTMLAttributes<HTMLScriptElement> & {

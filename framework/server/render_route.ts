@@ -41,6 +41,16 @@ const defaultConfig: Required<Omit<PageConfig, 'allowedMethods'>> = {
   defineValidationSchemas: () => ({}),
 };
 
+export type RenderRouteArgs = {
+  routeHash: string;
+  fsContext: FsContext;
+  pageModule: PageModule;
+  routeInterceptors: RouteInterceptors[];
+  req: Request;
+  params?: Record<string, string | undefined>;
+  csp?: boolean;
+};
+
 export async function renderRoute({
   routeHash,
   fsContext,
@@ -48,14 +58,8 @@ export async function renderRoute({
   routeInterceptors,
   req,
   params: rawParams,
-}: {
-  routeHash: string;
-  fsContext: FsContext;
-  pageModule: PageModule;
-  routeInterceptors: RouteInterceptors[];
-  req: Request;
-  params?: URLPatternResult;
-}): Promise<Response> {
+  csp = true,
+}: RenderRouteArgs): Promise<Response> {
   const appRootPath = fsContext.getAppRoot();
 
   const [rootModule] = await Promise.all([
@@ -93,7 +97,7 @@ export async function renderRoute({
       try {
         const result = await v.parseAsync(
           validationSchemas.params,
-          rawParams.pathname.groups,
+          rawParams,
         );
         params = result as Record<string, string>;
       } catch (error) {
@@ -103,7 +107,7 @@ export async function renderRoute({
       }
     } else {
       params = Object.fromEntries(
-        Object.entries(rawParams.pathname.groups).filter(
+        Object.entries(rawParams).filter(
           ([, value]) => typeof value !== 'undefined',
         ),
       ) as Record<string, string>;
@@ -256,7 +260,7 @@ export async function renderRoute({
 
     const linksReplacing = `@@${createHash(8)}@@`;
 
-    const nonce = createHash(32);
+    const nonce = csp ? createHash(32) : undefined;
     // Finally page is wrapped within __root component (SSR Only)
     // It includes all the necessary scripts to hydrate the page
     // and it also exposes Metadata and Links render props
@@ -299,10 +303,12 @@ export async function renderRoute({
 
     const res = ok(`<!DOCTYPE html>${html}`, 'html');
 
-    res.headers.set(
-      'Content-Security-Policy',
-      `script-src 'self' 'nonce-${nonce}' 'unsafe-inline'; base-uri 'self'; object-src 'none';`,
-    );
+    if (csp) {
+      res.headers.set(
+        'Content-Security-Policy',
+        `script-src 'self' 'nonce-${nonce}' 'unsafe-inline'; base-uri 'self'; object-src 'none';`,
+      );
+    }
 
     return res;
   };

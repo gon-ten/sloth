@@ -152,7 +152,7 @@ function createRouteHandlersFromRouteModule({
         pageModule,
         routeInterceptors,
         req,
-        params: params ?? undefined,
+        params: params?.pathname.groups ?? undefined,
       })
     ),
   };

@@ -15,7 +15,7 @@ export const manifest = {
     './routes/_middleware.ts': ['06a377285c8590b1a90fe82c8b42ea80', R1],
     './routes/_layout.tsx': ['fffc3b5fdd894d16ded33ebe43d0a390', R2],
     './routes/[lang]/index.tsx': ['a4b030c967561c3e16c7319d9a58ff53', R3],
-    './routes/[lang]/[...slug].tsx': ['e5c0564c4f9ce07b5c3f7d3cb5b4d173', R4],
+    './routes/[lang]/[...slug].tsx': ['a33ae2a942f4b9aff60eb59a79bdd6eb', R4],
   },
   collections: {
     config: collectionsConfig,
