@@ -5,11 +5,13 @@ import {
   DATA_COLLECTION_NAME_ATTRIBUTE,
   HYDRATION_SCRIPT_TYPE,
 } from '../../../constants.ts';
-import type { MDXComponentProps } from '../../../../types.ts';
+import type {
+  CollectionMapEntry,
+  MDXComponentProps,
+} from '../../../../types.ts';
 import { mdxComponents } from '../index.ts';
 import { Script } from '../../../scripts.ts';
 import { Link } from '../../../links.ts';
-import type { CollectionMapEntry } from '../../../../server/collections_map.ts';
 
 export const withMetadata = ({
   hash,
