@@ -26,7 +26,6 @@ import {
 } from './server/routes.ts';
 import { loadModule } from './utils/load_module.ts';
 import { join } from '@std/path/join';
-import { bundleStyles } from './styling/bundle_styles.ts';
 import { walk } from '@std/fs/walk';
 import { resolve } from '@std/path/resolve';
 import * as esbuild from 'esbuild';
@@ -312,7 +311,9 @@ async function createHydrationFile({
 }
 
 async function bundleAssets(context: FsContext) {
-  await Promise.all([bundleStyles(context), copyPublicFiles(context)]);
+  await Promise.all([
+    copyPublicFiles(context),
+  ]);
 }
 
 async function copyPublicFiles(context: FsContext): Promise<void> {
