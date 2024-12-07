@@ -31,7 +31,7 @@
     "@valibot/valibot": "jsr:@valibot/valibot@^0.42.1",
     "autoprefixer": "npm:autoprefixer@10.4.20",
     "cssnano": "npm:cssnano@7.0.6",
-    "esbuild": "npm:esbuild-wasm@0.24.0",
+    "esbuild": "npm:esbuild@0.24.0",
     "lowlight": "npm:lowlight@3.1.0",
     "magicast": "npm:magicast@^0.3.5",
     "postcss": "npm:postcss@8.4.47",
