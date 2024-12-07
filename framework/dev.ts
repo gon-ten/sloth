@@ -218,8 +218,11 @@ export default async function (config: AppConfigDev) {
   const fsContext = new FsContext(config.baseUrl);
   const manifest = await generateManifest({ fsContext });
   await build({ fsContext, manifest, config });
-  const mainModule = new URL(config.entryPoint, config.baseUrl).href;
-  await import(mainModule);
+  const isBuild = Deno.args.includes('--build');
+  if (!isBuild) {
+    const mainModule = new URL(config.entryPoint, config.baseUrl).href;
+    await import(mainModule);
+  }
 }
 
 async function createHydrationFile({
