@@ -29,16 +29,13 @@ import type {
   DefaultCollectionMetadata,
   MDXComponentProps,
 } from '../types.ts';
-import {
-  checksum,
-  createDirectoryIfNotExists,
-  fileNameWithNoExt,
-} from '../utils/fs.ts';
+import { createDirectoryIfNotExists, fileNameWithNoExt } from '../utils/fs.ts';
 import { loadModule } from '../utils/load_module.ts';
 import CodeBlockMetadataRehypePlugin from './rehype-plugins/code-block-metadata.ts';
 import ImageSizeRehypePlugin from './rehype-plugins/image-size.ts';
 import ListPrefixerRehypePlugin from './rehype-plugins/list-prefixer.ts';
 import TocRehypePlugin, { Toc } from './rehype-plugins/toc.ts';
+import { createHash } from '../utils/crypto.ts';
 
 type CollectionManifestModule = {
   collectionManifest: CollectionManifest;
@@ -175,7 +172,7 @@ export async function buildCollections(
   );
 
   for await (const file of fsContext.walkCollections()) {
-    const hash = await checksum(file.path);
+    const hash = createHash();
     const content = await Deno.readTextFile(file.path);
 
     let bodyToCompile = content;

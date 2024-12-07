@@ -18,7 +18,7 @@ import { formatFiles } from './utils/fmt.ts';
 import { toFileUrl } from '@std/path/to-file-url';
 import { buildCollections } from './collections/index.ts';
 import { Builder } from './plugins/core/builder.ts';
-import { checksum, createDirectoryIfNotExists } from './utils/fs.ts';
+import { createDirectoryIfNotExists } from './utils/fs.ts';
 import {
   extractInterceptors,
   findRouteInterceptors,
@@ -31,6 +31,7 @@ import { resolve } from '@std/path/resolve';
 import * as esbuild from 'esbuild';
 import { verifyMetadata } from './server/metadata.ts';
 import { denoPlugins } from '@luca/esbuild-deno-loader';
+import { createHash } from './utils/crypto.ts';
 
 async function generateManifest(
   { fsContext }: {
@@ -43,11 +44,9 @@ async function generateManifest(
   const castPath = (filePath: string) =>
     '.' + SEPARATOR + relative(rootDir, filePath);
 
-  const routesEntries = await Promise.all(
-    routes.map(async (
-      route,
-    ) => [castPath(route.path), await checksum(route.path)]),
-  );
+  const routesEntries = routes.map((
+    route,
+  ) => [castPath(route.path), createHash()]);
 
   const collectionsConfigFile = fsContext.resolvePath(
     'collections',
