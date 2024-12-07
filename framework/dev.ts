@@ -91,6 +91,7 @@ async function generateManifest(
 
   const outFile = fsContext.resolvePath('manifest.gen.ts');
 
+  await Deno.remove(outFile).catch(() => null);
   await Deno.writeTextFile(outFile, content);
 
   await formatFiles({

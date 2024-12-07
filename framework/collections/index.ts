@@ -117,6 +117,7 @@ async function createManifest({
 
   const outFile = resolveManifestPath(fsContext);
 
+  await Deno.remove(outFile).catch(() => null);
   await Deno.writeTextFile(outFile, content);
 
   return outFile;
