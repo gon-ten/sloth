@@ -32,6 +32,7 @@ import * as esbuild from 'esbuild';
 import { verifyMetadata } from './server/metadata.ts';
 import { denoPlugins } from '@luca/esbuild-deno-loader';
 import { createHash } from './utils/crypto.ts';
+import { executionContext } from './server/index.ts';
 
 async function generateManifest(
   { fsContext }: {
@@ -100,6 +101,8 @@ async function generateManifest(
   });
 
   const mod = await import(toFileUrl(outFile).href);
+
+  executionContext.isDev = true;
 
   return mod.manifest as Manifest;
 }
@@ -185,7 +188,11 @@ async function bundleClientSideAssets({
 
   await bundleClient({
     fsContext: fsContext,
-    entryPoints: [...routesToBundle, ...postsToBundle],
+    entryPoints: [
+      ...routesToBundle,
+      ...postsToBundle,
+      import.meta.resolve('./browser/hot_reload.ts'),
+    ],
     outDir: fsContext.resolveFromOutDir('static'),
     define: {
       'globalThis.BUILD_TIME': JSON.stringify(true),

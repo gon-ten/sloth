@@ -34,6 +34,7 @@ import {
 import { createHash } from '../utils/crypto.ts';
 import { Links, LINKS_CONTEXT, type LinksProps } from '../shared/links.ts';
 import { metadataToVnode } from './metadata.ts';
+import { executionContext } from './index.ts';
 
 const defaultConfig: Required<Omit<PageConfig, 'allowedMethods'>> = {
   ssrOnly: false,
@@ -239,6 +240,13 @@ export async function renderRoute({
         { type: 'module', src: `/static/${routeHash}.js`, defer: true },
       ]
       : [];
+
+    if (executionContext.isDev && !pageConfig.ssrOnly) {
+      scriptsContextValue.push({
+        type: 'module',
+        src: `/static/hot_reload.js`,
+      });
+    }
 
     const linksContextValue: LinksProps[] = [];
 

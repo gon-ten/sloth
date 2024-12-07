@@ -11,11 +11,11 @@ import * as collectionsConfig from './collections/config.ts';
 export const manifest = {
   importMeta: import.meta,
   routes: {
-    './routes/index.tsx': ['271c7f038118e441e3324b819da4126e', R0],
-    './routes/_middleware.ts': ['06a377285c8590b1a90fe82c8b42ea80', R1],
-    './routes/_layout.tsx': ['fffc3b5fdd894d16ded33ebe43d0a390', R2],
-    './routes/[lang]/index.tsx': ['a4b030c967561c3e16c7319d9a58ff53', R3],
-    './routes/[lang]/[...slug].tsx': ['a33ae2a942f4b9aff60eb59a79bdd6eb', R4],
+    './routes/index.tsx': ['a03d748a823c7eb33610', R0],
+    './routes/_middleware.ts': ['831f2140ca936c8c1870', R1],
+    './routes/_layout.tsx': ['8d8a19f3d2a6328dbbb5', R2],
+    './routes/[lang]/index.tsx': ['20460468d241249f2ed8', R3],
+    './routes/[lang]/[...slug].tsx': ['f23cddc30236863733b0', R4],
   },
   collections: {
     config: collectionsConfig,

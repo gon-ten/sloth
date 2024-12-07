@@ -10,6 +10,38 @@ import { loadCollections } from '../collections/index.ts';
 
 const DEFAULT_PORT = 3443;
 
+export const executionContext = { isDev: false };
+
+function createHotRealoadRoute(): Route {
+  const id = crypto.randomUUID();
+  return {
+    method: 'GET',
+    pattern: new URLPattern({ pathname: '/__hot_reload' }),
+    handler: (req) => {
+      const { socket, response } = Deno.upgradeWebSocket(req, {
+        idleTimeout: 60_000,
+      });
+
+      socket.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'presence') {
+            socket.send(
+              JSON.stringify(
+                { type: 'ack', payload: { id } },
+              ),
+            );
+          }
+        } catch {
+          // do nothing
+        }
+      };
+
+      return response;
+    },
+  };
+}
+
 export function withHeadSupport(
   handler: Handler,
 ): Handler {
@@ -54,32 +86,38 @@ export function initServer({
     return internalServerError();
   };
 
+  const allRoutes = [
+    {
+      method: ['GET', 'HEAD'],
+      pattern: new URLPattern({ pathname: '/favicon.ico' }),
+      handler: notFound,
+    },
+    {
+      method: ['GET', 'HEAD'],
+      pattern: new URLPattern({ pathname: '/static/*' }),
+      handler: withHeadSupport(
+        async (req) => {
+          const res = await serveDir(req, {
+            fsRoot: fsContext.resolveFromOutDir('static'),
+            urlRoot: 'static/',
+            showIndex: false,
+            quiet: true,
+            headers: ['Cache-Control: no-cache'],
+          });
+          res.headers.delete('server');
+          return res;
+        },
+      ),
+    },
+    ...routes,
+  ];
+
+  if (executionContext.isDev) {
+    allRoutes.unshift(createHotRealoadRoute());
+  }
+
   const coreHandler = route(
-    [
-      {
-        method: ['GET', 'HEAD'],
-        pattern: new URLPattern({ pathname: '/favicon.ico' }),
-        handler: notFound,
-      },
-      {
-        method: ['GET', 'HEAD'],
-        pattern: new URLPattern({ pathname: '/static/*' }),
-        handler: withHeadSupport(
-          async (req) => {
-            const res = await serveDir(req, {
-              fsRoot: fsContext.resolveFromOutDir('static'),
-              urlRoot: 'static/',
-              showIndex: false,
-              quiet: true,
-              headers: ['Cache-Control: no-cache'],
-            });
-            res.headers.delete('server');
-            return res;
-          },
-        ),
-      },
-      ...routes,
-    ],
+    allRoutes,
     defaultHandler,
   );
 
