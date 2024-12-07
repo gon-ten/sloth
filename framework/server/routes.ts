@@ -152,10 +152,22 @@ function createRouteHandlersFromRouteModule({
         pageModule,
         routeInterceptors,
         req,
-        params: params?.pathname.groups ?? undefined,
+        params: params?.pathname.groups
+          ? decodeRouteParams(params?.pathname.groups)
+          : undefined,
       })
     ),
   };
+}
+
+function decodeRouteParams(
+  params: Record<string, string | undefined>,
+): Record<string, string | undefined> {
+  return Object.fromEntries(
+    Object.entries(params).map((
+      [key, value],
+    ) => [key, value && decodeURIComponent(value)]),
+  );
 }
 
 export function composeRoutes(
