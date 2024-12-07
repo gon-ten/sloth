@@ -6,6 +6,7 @@ import { internalServerError, notFound } from './http_responses.ts';
 import { AppConfig } from '../types.ts';
 import { composeRoutes } from './routes.ts';
 import { createRobotsRoute } from './robots.ts';
+import { loadCollections } from '../collections/index.ts';
 
 const DEFAULT_PORT = 3443;
 
@@ -113,6 +114,12 @@ export async function start(config: AppConfig) {
   );
 
   const robotsRoute = await createRobotsRoute(fsContext);
+
+  try {
+    await loadCollections({ fsContext });
+  } catch (error) {
+    console.error('Error loading collections', error);
+  }
 
   initServer({
     fsContext,
