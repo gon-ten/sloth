@@ -214,11 +214,15 @@ export function composeRoutes(
 }
 
 export function getOriginUrl(req: Request): URL {
+  const url = new URL(req.url);
   const forwardedProto = req.headers.get('X-Forwarded-Proto');
   const forwardedHost = req.headers.get('X-Forwarded-Host');
 
   const protocol = forwardedProto || 'http';
-  const host = forwardedHost || req.headers.get('host');
+  const host = forwardedHost || req.headers.get('host') || url.host;
 
-  return new URL(req.url, `${protocol}://${host}`);
+  url.host = host;
+  url.protocol = protocol;
+
+  return url;
 }
