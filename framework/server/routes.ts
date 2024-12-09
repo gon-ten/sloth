@@ -212,3 +212,13 @@ export function composeRoutes(
 
   return routes.toSorted((a, b) => a.deep - b.deep).map(({ route }) => route);
 }
+
+export function getOriginUrl(req: Request): URL {
+  const forwardedProto = req.headers.get('X-Forwarded-Proto');
+  const forwardedHost = req.headers.get('X-Forwarded-Host');
+
+  const protocol = forwardedProto || 'http';
+  const host = forwardedHost || req.headers.get('host');
+
+  return new URL(req.url, `${protocol}://${host}`);
+}
