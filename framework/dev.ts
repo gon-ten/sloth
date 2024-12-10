@@ -7,6 +7,7 @@ import {
   Interceptors,
   InterceptorsMap,
   Manifest,
+  Mode,
   PageConfig,
   PageModule,
   RouteImportMapEntry,
@@ -152,9 +153,11 @@ async function bundleClientSideRouteFiles(
 async function bundleClientSideAssets({
   fsContext,
   manifest,
+  mode,
 }: {
   fsContext: FsContext;
   manifest: Manifest;
+  mode: Mode;
 }) {
   const rawSsrDir = fsContext.resolveFromOutDir('routes');
   const clientBuildOutDir = fsContext.resolveFromOutDir('static');
@@ -187,6 +190,7 @@ async function bundleClientSideAssets({
   });
 
   await bundleClient({
+    mode,
     fsContext: fsContext,
     entryPoints: [
       ...routesToBundle,
@@ -202,10 +206,11 @@ async function bundleClientSideAssets({
   await bundleAssets(fsContext);
 }
 
-async function build({ fsContext, manifest, config }: {
+async function build({ fsContext, manifest, config, mode }: {
   fsContext: FsContext;
   manifest: Manifest;
   config: AppConfigDev;
+  mode: Mode;
 }) {
   const outDir = fsContext.resolveFromOutDir('.');
 
@@ -216,16 +221,21 @@ async function build({ fsContext, manifest, config }: {
 
   config.plugins?.forEach((plugin) => plugin.setup(builder));
 
-  await bundleClientSideAssets({ fsContext, manifest });
+  await bundleClientSideAssets({ fsContext, manifest, mode });
 
   await builder.wg.wait();
 }
 
 export default async function (config: AppConfigDev) {
+  const isBuild = Deno.args.includes('--build');
   const fsContext = new FsContext(config.baseUrl);
   const manifest = await generateManifest({ fsContext });
-  await build({ fsContext, manifest, config });
-  const isBuild = Deno.args.includes('--build');
+  await build({
+    fsContext,
+    manifest,
+    config,
+    mode: isBuild ? 'production' : 'development',
+  });
   if (!isBuild) {
     const mainModule = new URL(config.entryPoint, config.baseUrl).href;
     await import(mainModule);
@@ -353,6 +363,7 @@ async function bundleClient({
   plugins = [],
   fsContext,
   alias,
+  mode,
 }: {
   entryPoints: string[];
   outDir: string;
@@ -360,6 +371,7 @@ async function bundleClient({
   define?: Record<string, string>;
   plugins?: esbuild.Plugin[];
   alias?: Record<string, string>;
+  mode: Mode;
 }): Promise<CookedFiles> {
   await createDirectoryIfNotExists(outDir);
 
@@ -383,9 +395,9 @@ async function bundleClient({
     splitting: true,
     bundle: true,
     treeShaking: true,
-    minify: false,
+    minify: true,
 
-    sourcemap: true,
+    sourcemap: mode === 'development',
     metafile: true,
 
     entryPoints,
