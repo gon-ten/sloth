@@ -27,7 +27,7 @@ export async function createDirectoryIfNotExists(path: string) {
 
 export function fsPathToRoutePattern(
   routePath: string,
-): { pattern: string; deep: number } {
+): { pattern: string } {
   const parts = fileNameWithNoExt(routePath).split(SEPARATOR_PATTERN).filter(
     Boolean,
   );
@@ -99,6 +99,5 @@ export function fsPathToRoutePattern(
 
   return {
     pattern: '/' + parts.join('/'),
-    deep: parts.length,
   };
 }

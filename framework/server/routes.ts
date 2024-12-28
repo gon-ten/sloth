@@ -174,7 +174,7 @@ export function composeRoutes(
   fsContext: FsContext,
   manifest: Manifest,
 ): Route[] {
-  const routes: Array<{ route: Route; deep: number }> = [];
+  const routes: Array<{ route: Route }> = [];
   const interceptorsMap = extractInterceptors({
     fsContext,
     manifest,
@@ -198,7 +198,6 @@ export function composeRoutes(
 
     routes.push(
       {
-        deep: routeMatch.deep,
         route: createRouteHandlersFromRouteModule({
           hash,
           fsContext,
@@ -210,7 +209,7 @@ export function composeRoutes(
     );
   }
 
-  return routes.toSorted((a, b) => a.deep - b.deep).map(({ route }) => route);
+  return routes.map(({ route }) => route);
 }
 
 export function getOriginUrl(req: Request): URL {

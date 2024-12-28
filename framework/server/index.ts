@@ -2,11 +2,13 @@ import * as colors from '@std/fmt/colors';
 import { FsContext } from '../lib/fs_context.ts';
 import { type Handler, type Route, route, serveDir } from '@std/http';
 import { CollectionNotFoundError } from '../collections/errors.ts';
-import { internalServerError, notFound } from './http_responses.ts';
+import { internalServerError, notFound, ok } from './http_responses.ts';
 import { AppConfig } from '../types.ts';
 import { composeRoutes } from './routes.ts';
 import { createRobotsRoute } from './robots.ts';
 import { loadCollections } from '../collections/index.ts';
+import { h } from 'preact';
+import { renderToString } from 'preact-render-to-string';
 
 const DEFAULT_PORT = 3443;
 
@@ -113,7 +115,8 @@ export function initServer({
   ];
 
   if (executionContext.isDev) {
-    allRoutes.unshift(createHotRealoadRoute());
+    const debugRoute = createDebugRoute(allRoutes);
+    allRoutes.unshift(createHotRealoadRoute(), debugRoute);
   }
 
   const coreHandler = route(
@@ -164,4 +167,42 @@ export async function start(config: AppConfig) {
     routes: [...(robotsRoute ? [robotsRoute] : []), ...routes],
     defaultHandler: notFound,
   });
+}
+
+function createDebugRoute(allRoutes: Route[]): Route {
+  return {
+    method: ['GET', 'HEAD'],
+    pattern: new URLPattern({ pathname: '/__debug' }),
+    handler: withHeadSupport(() => {
+      return ok(
+        renderToString(
+          h('table', {}, [
+            h('thead', {}, [
+              h('tr', {}, [
+                h('th', {}, '#'),
+                h('th', {}, 'Method'),
+                h('th', {}, 'Pattern'),
+              ]),
+            ]),
+            h(
+              'tbody',
+              {},
+              allRoutes.map((route, index) => {
+                return h('tr', {}, [
+                  h('td', {}, index + 1),
+                  h(
+                    'td',
+                    {},
+                    route.method ? JSON.stringify(route.method) : '-',
+                  ),
+                  h('td', {}, route.pattern.pathname),
+                ]);
+              }),
+            ),
+          ]),
+        ),
+        'html',
+      );
+    }),
+  };
 }
