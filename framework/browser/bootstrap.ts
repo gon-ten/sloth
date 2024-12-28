@@ -24,9 +24,9 @@ export function bootstrap({
   );
 
   const store = storeEl?.textContent ? JSON.parse(storeEl.textContent) : {};
-  const [common, { [hash]: pageData, ...layoutsData }] = store;
+  const [common, { [hash]: data, ...layoutsData }] = store;
 
-  const page = h(Page, { ...common, pageData });
+  const page = h(Page, { ...common, data });
   const layout = layouts
     // deno-lint-ignore no-explicit-any
     .reduceRight<VNode<any>>(
