@@ -154,10 +154,14 @@ async function bundleClientSideAssets({
   fsContext,
   manifest,
   mode,
+  define = {},
+  external = [],
 }: {
   fsContext: FsContext;
   manifest: Manifest;
   mode: Mode;
+  external?: esbuild.BuildOptions['external'];
+  define?: esbuild.BuildOptions['define'];
 }) {
   const rawSsrDir = fsContext.resolveFromOutDir('routes');
   const clientBuildOutDir = fsContext.resolveFromOutDir('static');
@@ -198,7 +202,9 @@ async function bundleClientSideAssets({
       import.meta.resolve('./browser/hot_reload.ts'),
     ],
     outDir: fsContext.resolveFromOutDir('static'),
+    external,
     define: {
+      ...define,
       'globalThis.BUILD_TIME': JSON.stringify(true),
     },
   });
@@ -221,7 +227,12 @@ async function build({ fsContext, manifest, config, mode }: {
 
   config.plugins?.forEach((plugin) => plugin.setup(builder));
 
-  await bundleClientSideAssets({ fsContext, manifest, mode });
+  await bundleClientSideAssets({
+    fsContext,
+    manifest,
+    mode,
+    ...config.esbuildConfig,
+  });
 
   await builder.wg.wait();
 }
@@ -364,6 +375,7 @@ async function bundleClient({
   fsContext,
   alias,
   mode,
+  external = [],
 }: {
   entryPoints: string[];
   outDir: string;
@@ -372,6 +384,7 @@ async function bundleClient({
   plugins?: esbuild.Plugin[];
   alias?: Record<string, string>;
   mode: Mode;
+  external?: string[];
 }): Promise<CookedFiles> {
   await createDirectoryIfNotExists(outDir);
 
@@ -413,6 +426,8 @@ async function bundleClient({
     },
 
     alias,
+
+    external,
 
     entryNames: '[name]',
     write: false,

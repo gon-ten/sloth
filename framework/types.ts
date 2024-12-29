@@ -39,6 +39,10 @@ export type AppConfigDev = {
   entryPoint: string;
   config: BaseConfig;
   plugins: Plugin[];
+  esbuildConfig?: Pick<
+    import('esbuild').BuildOptions,
+    'define' | 'external'
+  >;
 };
 
 export type AppConfig = {
