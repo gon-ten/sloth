@@ -246,6 +246,14 @@ async function build({ fsContext, manifest, config, mode }: {
   });
 
   await builder.wg.wait();
+
+  await Promise.all(
+    ['client', 'collections', 'routes'].map((dir) =>
+      Deno.remove(fsContext.resolveFromOutDir(dir), { recursive: true }).catch(
+        () => null
+      )
+    ),
+  );
 }
 
 export default async function (config: AppConfigDev) {
