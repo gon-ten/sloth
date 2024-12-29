@@ -89,17 +89,11 @@ export type PageModule = {
 export type InferLoaderReturnType<C extends () => Promise<unknown>> = C extends
   () => Promise<infer T> ? T : never;
 
-export type RouteInterceptors = {
-  hash: string;
-  middleware?: string;
-  layout?: string;
-};
-
 export type RouteImportMapEntry = {
   path: string;
   hash: string;
   hydration?: string;
-  interceptors: RouteInterceptors[];
+  interceptors: Interceptors[];
 };
 
 export type InterceptorsMap = Map<RelativePath, Interceptors>;
@@ -222,9 +216,14 @@ export type AbsolutePath = string;
 export type FileName = string;
 
 export type Interceptors = {
-  hash: string;
-  middleware?: string;
-  layout?: string;
+  middleware?: {
+    hash: string;
+    path: string;
+  };
+  layout?: {
+    hash: string;
+    path: string;
+  };
 };
 
 type ValidateShape = {

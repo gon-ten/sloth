@@ -5,7 +5,6 @@ import {
   InterceptorsMap,
   Manifest,
   PageModule,
-  RouteInterceptors,
 } from '../types.ts';
 import { MIDDLEWARE_FILE_NAME } from '../shared/constants.ts';
 import { LAYOUT_FILE_NAME } from '../shared/constants.ts';
@@ -88,12 +87,18 @@ export function extractInterceptors(
   ) {
     if (wellKnownFileNames.has(entryName)) {
       if (!interceptorsMap.has(relativePath)) {
-        interceptorsMap.set(relativePath, { hash });
+        interceptorsMap.set(relativePath, {});
       }
       if (entryName === LAYOUT_FILE_NAME) {
-        interceptorsMap.get(relativePath)!.layout = absRouteFilePath;
+        interceptorsMap.get(relativePath)!.layout = {
+          hash,
+          path: absRouteFilePath,
+        };
       } else if (entryName === MIDDLEWARE_FILE_NAME) {
-        interceptorsMap.get(relativePath)!.middleware = absRouteFilePath;
+        interceptorsMap.get(relativePath)!.middleware = {
+          hash,
+          path: absRouteFilePath,
+        };
       }
     }
   }
@@ -110,11 +115,11 @@ export function findRouteInterceptors(
   for (const part of parts) {
     acc += part;
     if (interceptorsMap.has(acc)) {
-      const { layout, middleware, hash } = interceptorsMap.get(acc)!;
+      const { layout, middleware } = interceptorsMap.get(acc)!;
       if (!middleware && !layout) {
         continue;
       }
-      routeInterceptors.push({ middleware, layout, hash });
+      routeInterceptors.push({ middleware, layout });
     }
     acc += SEPARATOR;
   }
@@ -132,7 +137,7 @@ function createRouteHandlersFromRouteModule({
   fsContext: FsContext;
   routeMatch: string;
   pageModule: PageModule;
-  routeInterceptors: RouteInterceptors[];
+  routeInterceptors: Interceptors[];
 }): Route {
   const { pageConfig = {} } = pageModule;
 

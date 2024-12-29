@@ -34,6 +34,15 @@ import { verifyMetadata } from './server/metadata.ts';
 import { denoPlugins } from '@luca/esbuild-deno-loader';
 import { createHash } from './utils/crypto.ts';
 import { executionContext } from './server/index.ts';
+import {
+  ModuleKind,
+  ModuleResolutionKind,
+  Project,
+  ScriptTarget,
+  ts,
+} from 'ts-morph';
+import { basename } from '@std/path/basename';
+import { extname } from '@std/path/extname';
 
 async function generateManifest(
   { fsContext }: {
@@ -181,6 +190,8 @@ async function bundleClientSideAssets({
       fsContext,
     });
 
+  await prepareClientCode({ manifest, fsContext });
+
   const { filesToBundle: routesToBundle, filesToFormat: routesToFormat } =
     await bundleClientSideRouteFiles({
       manifest,
@@ -272,6 +283,8 @@ async function createHydrationFile({
     pageConfig: PageConfig;
   }
 > {
+  const cookedFilePath = fsContext.resolveFromOutDir('client', hash + '.jsx');
+
   const { metadata, pageConfig } = await loadModule<PageModule>(
     routeFileAbsPath,
   );
@@ -294,7 +307,7 @@ async function createHydrationFile({
   if (!ssrOnly) {
     const layouts = interceptors
       .filter(({ layout }) => Boolean(layout))
-      .map(({ layout, hash }) => ({ importPath: layout!, hash }));
+      .map(({ layout }) => ({ importPath: layout!.path, hash: layout!.hash }));
 
     const bootstrapMod = import.meta.resolve('./browser/bootstrap.ts');
     hydrationFilePath = join(outDir, `${hash}.tsx`);
@@ -302,14 +315,16 @@ async function createHydrationFile({
     import type { LayoutProps } from "@sloth/core";
     import type { ComponentType } from "preact";
     import { bootstrap } from "${bootstrapMod}";
-    import { default as Page } from "${toFileUrl(routeFileAbsPath)}";
+    import { default as Page } from "${toFileUrl(cookedFilePath)}";
     
     ${
       pageConfig?.skipInheritedLayouts ? '' : layouts
         .map(
           (layout, index) =>
             `import { default as Layout$${index} } from "${
-              toFileUrl(layout.importPath)
+              toFileUrl(
+                fsContext.resolveFromOutDir('client', layout.hash + '.jsx'),
+              )
             }";`,
         )
         .join('\n')
@@ -455,4 +470,108 @@ async function bundleClient({
   await esbuild.stop();
 
   return paths;
+}
+
+export async function prepareClientCode({ manifest, fsContext }: {
+  manifest: Manifest;
+  fsContext: FsContext;
+}) {
+  const tmpOutDir = await Deno.makeTempDir();
+
+  const project = new Project({
+    compilerOptions: {
+      target: ScriptTarget.ESNext,
+      moduleResolution: ModuleResolutionKind.NodeNext,
+      module: ModuleKind.ESNext,
+      jsx: ts.JsxEmit.Preserve,
+      jsxImportSource: 'preact',
+      outDir: tmpOutDir,
+    },
+  });
+
+  for (const path of Object.keys(manifest.routes)) {
+    const entryName = basename(path);
+
+    const absEntryPath = path.slice(0, -entryName.length);
+
+    const file = project.addSourceFileAtPath(path);
+
+    file.getImportDeclarations().forEach((importDeclaration) => {
+      const moduleSpecifier = importDeclaration.getModuleSpecifier();
+      const moduleSpecifierText = moduleSpecifier.getText().slice(1, -1);
+      if (moduleSpecifierText.startsWith('../')) {
+        const modulePath = resolve(absEntryPath, moduleSpecifierText);
+        importDeclaration.setModuleSpecifier(modulePath);
+      }
+    });
+
+    file.getVariableDeclarations().forEach((v) => {
+      if (v.isExported()) {
+        v.remove();
+      }
+    });
+
+    file.getFunctions().forEach((f) => {
+      if (f.isExported() && !f.isDefaultExport()) {
+        f.remove();
+      }
+    });
+
+    file.getExportDeclarations().forEach((exportDeclaration) => {
+      exportDeclaration.removeModuleSpecifier().remove();
+    });
+
+    file.fixUnusedIdentifiers();
+  }
+
+  await project.emit();
+
+  const entryPoints: string[] = [];
+
+  for await (
+    const entry of walk(resolve(tmpOutDir, 'routes'), {
+      match: [/\.js(x)$/],
+    })
+  ) {
+    const containerRelativeDir = relative(
+      tmpOutDir,
+      entry.path.slice(0, -entry.name.length),
+    );
+
+    const extMap: Record<string, string> = {
+      '.js': '.ts',
+      '.jsx': '.tsx',
+    };
+
+    const jsExt = extname(entry.path);
+    const tsExt = extMap[jsExt];
+
+    const tsFilePath = entry.name.slice(0, -jsExt.length) + tsExt;
+
+    const manifestRouteKey = `.${SEPARATOR}` + join(
+      containerRelativeDir,
+      tsFilePath,
+    );
+
+    if (!manifest.routes[manifestRouteKey]) {
+      continue;
+    }
+
+    const [hash] = manifest.routes[manifestRouteKey];
+
+    const outDir = fsContext.resolveFromOutDir('client');
+
+    await createDirectoryIfNotExists(outDir);
+
+    const outFile = join(outDir, `${hash}${jsExt}`);
+
+    await Deno.copyFile(
+      entry.path,
+      outFile,
+    );
+
+    entryPoints.push(outFile);
+  }
+
+  return entryPoints;
 }

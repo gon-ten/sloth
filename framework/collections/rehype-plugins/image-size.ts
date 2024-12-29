@@ -1,6 +1,4 @@
 import { visit } from 'unist-util-visit';
-import { FsContext } from '../../lib/fs_context.ts';
-import { join } from '@std/path/join';
 import { exists } from '@std/fs/exists';
 import { imageSize } from 'image-size';
 

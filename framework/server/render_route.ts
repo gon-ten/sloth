@@ -9,6 +9,7 @@ import {
 } from '../shared/constants.ts';
 import '../shared/option_hooks.ts';
 import type {
+  Interceptors,
   LayoutModule,
   MiddlewareModule,
   PageConfig,
@@ -16,7 +17,6 @@ import type {
   PageProps,
   RenderContext,
   RootModule,
-  RouteInterceptors,
 } from '../types.ts';
 import { loadModule } from '../utils/load_module.ts';
 import type { FsContext } from '../lib/fs_context.ts';
@@ -47,7 +47,7 @@ export type RenderRouteArgs = {
   routeHash: string;
   fsContext: FsContext;
   pageModule: PageModule;
-  routeInterceptors: RouteInterceptors[];
+  routeInterceptors: Interceptors[];
   req: Request;
   params?: Record<string, string | undefined>;
   csp?: boolean;
@@ -138,14 +138,16 @@ export async function renderRoute({
     // Array of handlers to be consumed in order during the request lifecycle
     const handlers: Array<() => Promise<Response> | Response> = [];
 
-    for (const { middleware, layout, hash } of interceptors) {
+    for (const { middleware, layout } of interceptors) {
       if (middleware) {
-        const { handler } = await loadModule<MiddlewareModule>(middleware);
+        const { path: modPath } = middleware;
+        const { handler } = await loadModule<MiddlewareModule>(modPath);
         handlers.push(() => handler({ req, ctx }));
       }
 
       if (layout) {
-        const layoutModule = await loadModule<LayoutModule>(layout);
+        const { hash, path: modPath } = layout;
+        const layoutModule = await loadModule<LayoutModule>(modPath);
         const { loader } = layoutModule;
         if (loader) {
           layouts.push({
