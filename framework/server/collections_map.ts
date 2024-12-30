@@ -79,8 +79,9 @@ export class ServerCollection<C extends CollectionName>
     const collection = this.#getCollection();
 
     if (!Reflect.has(collection, entryName)) {
-      throw new CollectionNotFoundError();
+      throw new CollectionNotFoundError(this.#collectionName);
     }
+
     return collection[entryName] as GetCollectionEntryResult<C>;
   }
 

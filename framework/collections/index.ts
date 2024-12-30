@@ -346,7 +346,7 @@ export async function buildCollections(
       // @ts-ignore override
       export type CollectionsMap = _CollectionsMap;
       // @ts-ignore override
-      export function getCollection<C extends CollectionName>(collectionName: C): Collection<C>;
+      export function getCollection<C extends CollectionName>(collectionName: C | (string & {})): Collection<C>;
     }
     `,
   );
