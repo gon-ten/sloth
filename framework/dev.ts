@@ -248,9 +248,9 @@ async function build({ fsContext, manifest, config, mode }: {
   await builder.wg.wait();
 
   await Promise.all(
-    ['client', 'collections', 'routes'].map((dir) =>
+    ['client', 'routes'].map((dir) =>
       Deno.remove(fsContext.resolveFromOutDir(dir), { recursive: true }).catch(
-        () => null
+        () => null,
       )
     ),
   );
