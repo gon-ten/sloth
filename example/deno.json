@@ -10,7 +10,7 @@
     "@/🛠️/": "./utils/",
     "@preact/signals": "npm:@preact/signals@1.3.0",
     "@preact/signals-core": "npm:@preact/signals-core@1.8.0",
-    "@sloth/core": "jsr:@sloth/core@0.0.3-beta.5",
+    "@sloth/core": "jsr:@sloth/core@0.0.3-beta.6",
     "@std/dotenv": "jsr:@std/dotenv@^0.225.1",
     "@std/fs": "jsr:@std/fs@^1.0.2",
     "@std/http": "jsr:@std/http@1.0.9",
