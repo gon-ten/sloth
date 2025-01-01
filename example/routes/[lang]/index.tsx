@@ -41,10 +41,8 @@ function formatDate(date: Date | string, lang: string) {
   return formatter.format(date instanceof Date ? date : new Date(date));
 }
 
-export default function BlogIndex({ params, url }: PageProps<void, Params>) {
-  const { lang } = params;
-
-  const { Provider } = getCollection('blogs').all();
+export default function BlogIndex({ params }: PageProps<void, Params>) {
+  const { Provider } = getCollection('blogs/' + params.lang).all();
 
   return (
     <>
@@ -61,12 +59,12 @@ export default function BlogIndex({ params, url }: PageProps<void, Params>) {
                     dateTime={new Date(metadata.publishingDate)
                       .toISOString()}
                   >
-                    {formatDate(metadata.publishingDate, lang)}
+                    {formatDate(metadata.publishingDate, params.lang)}
                   </time>
                 </section>
                 <a
                   key={name}
-                  href={`${url}/${name}`}
+                  href={`/${params.lang}/${name}`}
                   className='block'
                 >
                   <section className='group flex flex-row -mx-4 lg:mx-0 p-4 rounded-xl hover:bg-zinc-100 hover:dark:bg-zinc-700/20 transition-colors'>
@@ -76,7 +74,7 @@ export default function BlogIndex({ params, url }: PageProps<void, Params>) {
                           dateTime={new Date(metadata.publishingDate)
                             .toISOString()}
                         >
-                          {formatDate(metadata.publishingDate, lang)}
+                          {formatDate(metadata.publishingDate, params.lang)}
                         </time>
                       </section>
                       <h2 className='text-base font-semibold'>

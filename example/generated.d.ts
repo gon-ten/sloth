@@ -12,8 +12,14 @@ import type { config } from './collections/config.ts';
 type Config = typeof config;
 
 type _CollectionsMap = {
-  'blogs': {
-    entries: 'blog-01';
+  'blogs/es': {
+    entries: 'blog-03';
+    metadata: v.InferOutput<Config['blogs*']['schema']>;
+    Content: ComponentType<unknown>;
+    toc: CollectionToc;
+  };
+  'blogs/en': {
+    entries: 'blog-02' | 'blog-01';
     metadata: v.InferOutput<Config['blogs*']['schema']>;
     Content: ComponentType<unknown>;
     toc: CollectionToc;
@@ -38,6 +44,6 @@ declare module '@sloth/core/content' {
   export type CollectionsMap = _CollectionsMap;
   // @ts-ignore override
   export function getCollection<C extends CollectionName>(
-    collectionName: C,
+    collectionName: C | (string & {}),
   ): Collection<C>;
 }

@@ -12,7 +12,7 @@ import { LayoutRow } from '@/🧱/LayoutRow.tsx';
 import { ArrowLeft } from '../../icons/ArrowLeft.tsx';
 
 export const metadata: GenerateMetadataFunction<Params> = ({ params }) => {
-  const { metadata } = getCollection('blogs').get(params.slug);
+  const { metadata } = getCollection('blogs/' + params.lang).get(params.slug);
   return {
     title: metadata.title,
     description: metadata.description,
@@ -33,7 +33,11 @@ export const pageConfig = {
 type Params = InferValidateOptions<typeof pageConfig, 'params'>;
 
 export const loader: Loader<void, Params> = ({ params, ctx }) => {
-  const collection = getCollection('blogs');
+  // const db = new PGlite();
+
+  // console.log(db);
+
+  const collection = getCollection('blogs/' + params.lang);
 
   if (!collection.has(params.slug)) {
     return ctx.renderNotFound();
@@ -43,7 +47,10 @@ export const loader: Loader<void, Params> = ({ params, ctx }) => {
 };
 
 export default function Blog({ params }: PageProps<void, Params>) {
-  const { Content, metadata } = getCollection('blogs').get(params.slug);
+  const collectionName = 'blogs/' + params.lang;
+  const { Content, metadata } = getCollection(collectionName).get(
+    params.slug,
+  );
 
   return (
     <LayoutRow className='mt-8'>
