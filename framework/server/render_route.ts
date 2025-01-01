@@ -35,7 +35,6 @@ import { createHash } from '../utils/crypto.ts';
 import { Links, LINKS_CONTEXT, type LinksProps } from '../shared/links.ts';
 import { metadataToVnode } from './metadata.ts';
 import { executionContext } from './index.ts';
-import { getOriginUrl } from './routes.ts';
 
 const defaultConfig: Required<Omit<PageConfig, 'allowedMethods'>> = {
   ssrOnly: false,
@@ -89,7 +88,7 @@ export async function renderRoute({
 
   const validationSchemas = pageConfig.defineValidationSchemas?.();
 
-  const url = getOriginUrl(req);
+  const url = new URL(req.url);
 
   let params: Record<string, string> = {};
 

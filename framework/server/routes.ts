@@ -217,7 +217,7 @@ export function composeRoutes(
   return routes.map(({ route }) => route);
 }
 
-export function getOriginUrl(req: Request): URL {
+function getOriginUrl(req: Request): URL {
   const url = new URL(req.url);
   const forwardedProto = req.headers.get('X-Forwarded-Proto');
   const forwardedHost = req.headers.get('X-Forwarded-Host');
@@ -229,4 +229,9 @@ export function getOriginUrl(req: Request): URL {
   url.protocol = protocol;
 
   return url;
+}
+
+export function adaptOriginalRequest(originalRequest: Request): Request {
+  const url = getOriginUrl(originalRequest);
+  return new Request(url, originalRequest);
 }

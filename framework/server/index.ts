@@ -4,7 +4,7 @@ import { type Handler, type Route, route, serveDir } from '@std/http';
 import { CollectionNotFoundError } from '../collections/errors.ts';
 import { internalServerError, notFound, ok } from './http_responses.ts';
 import { AppConfig } from '../types.ts';
-import { composeRoutes } from './routes.ts';
+import { adaptOriginalRequest, composeRoutes } from './routes.ts';
 import { createRobotsRoute } from './robots.ts';
 import { loadCollections } from '../collections/index.ts';
 import { h } from 'preact';
@@ -132,12 +132,13 @@ export function initServer({
       onError,
     },
     (req, info) => {
-      const url = new URL(req.url);
+      const adaptedRequest = adaptOriginalRequest(req);
+      const url = new URL(adaptedRequest.url);
       if (url.pathname.length > 1 && url.pathname.endsWith('/')) {
         url.pathname = url.pathname.slice(0, -1);
         return Response.redirect(url, 307);
       }
-      return coreHandler(req, info);
+      return coreHandler(adaptedRequest, info);
     },
   );
 
