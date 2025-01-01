@@ -88,8 +88,6 @@ export async function renderRoute({
 
   const validationSchemas = pageConfig.defineValidationSchemas?.();
 
-  const url = new URL(req.url);
-
   let params: Record<string, string> = {};
 
   if (rawParams) {
@@ -116,7 +114,6 @@ export async function renderRoute({
   }
 
   const sharedProps: Omit<PageProps, 'data'> = {
-    url: url.href,
     pageConfig: { ssrOnly: pageConfig.ssrOnly },
     params,
   };

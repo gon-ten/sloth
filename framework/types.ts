@@ -104,7 +104,6 @@ export type PageProps<
   Data = unknown,
   Params extends Record<string, string> = Record<string, string>,
 > = {
-  url: string;
   data: Data;
   params: Params;
   pageConfig: Pick<PageConfig, 'ssrOnly'>;

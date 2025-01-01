@@ -216,22 +216,3 @@ export function composeRoutes(
 
   return routes.map(({ route }) => route);
 }
-
-function getOriginUrl(req: Request): URL {
-  const url = new URL(req.url);
-  const forwardedProto = req.headers.get('X-Forwarded-Proto');
-  const forwardedHost = req.headers.get('X-Forwarded-Host');
-
-  const protocol = forwardedProto || 'http';
-  const host = forwardedHost || req.headers.get('host') || url.host;
-
-  url.host = host;
-  url.protocol = protocol;
-
-  return url;
-}
-
-export function adaptOriginalRequest(originalRequest: Request): Request {
-  const url = getOriginUrl(originalRequest);
-  return new Request(url, originalRequest);
-}

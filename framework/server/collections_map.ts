@@ -36,7 +36,7 @@ export class ServerCollection<C extends CollectionName>
   #getCollection() {
     const collection = collectionsMap.get(this.#collectionName) ?? {};
     if (!collection) {
-      throw new CollectionNotFoundError();
+      throw new CollectionNotFoundError(this.#collectionName);
     }
     return collection;
   }
