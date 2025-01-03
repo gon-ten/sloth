@@ -52,6 +52,7 @@ import { extname } from '@std/path/extname';
 import { debounce } from '@std/async';
 import { TypedEvents } from './lib/typed_events.ts';
 import { LAYOUT_FILE_NAME } from './shared/constants.ts';
+import { dirname } from '@std/path/dirname';
 
 async function generateManifest(
   { fsContext }: {
@@ -657,14 +658,20 @@ class BuildContext {
   async #addCollectionsToProject() {
   }
 
-  #extractLayouts(routesEntries: WalkEntry[]): Map<string, string> {
-    const layouts: Map<string, string> = new Map();
+  #extractLayouts(routesEntries: WalkEntry[]) {
+    const layouts: Map<string, {
+      realPath: string;
+      virtualPath: string;
+    }> = new Map();
     for (const entry of routesEntries) {
       if (entry.name !== LAYOUT_FILE_NAME) {
         continue;
       }
       const absRouteFilePath = entry.path.slice(0, -entry.name.length);
-      layouts.set(absRouteFilePath, entry.path);
+      layouts.set(absRouteFilePath, {
+        realPath: entry.path,
+        virtualPath: this.#getVirtualPath(entry.path),
+      });
     }
     return layouts;
   }
@@ -678,19 +685,12 @@ class BuildContext {
 
     const layouts = this.#extractLayouts(filesInRoutes);
 
-    const realPathMemoryPathMap = new Map<string, string>();
-
-    for (const [, layoutFilePath] of layouts.entries()) {
-      const relativePath = this.#getProjectRelativePath(layoutFilePath);
+    for (const [, { realPath, virtualPath }] of layouts.entries()) {
       const sourceFile = this.#project.createSourceFile(
-        relativePath,
-        await Deno.readTextFile(layoutFilePath),
+        virtualPath,
+        await Deno.readTextFile(realPath),
       );
-      realPathMemoryPathMap.set(
-        layoutFilePath,
-        relativePath,
-      );
-      this.#sanitizeFile(sourceFile, layoutFilePath);
+      this.#sanitizeFile(sourceFile, realPath);
     }
 
     const findWrappingLayouts = (routePath: string) => {
@@ -702,7 +702,7 @@ class BuildContext {
         acc += part + SEPARATOR;
         if (layouts.has(acc)) {
           routeLayouts.push(
-            realPathMemoryPathMap.get(layouts.get(acc)!)!,
+            layouts.get(acc)!.virtualPath,
           );
         }
       }
@@ -713,22 +713,23 @@ class BuildContext {
       if (wellKnownFileNames.has(basename(route.path))) {
         continue;
       }
-      const routeLayouts = findWrappingLayouts(route.path);
-      const relativePath = this.#getProjectRelativePath(route.path);
+      let routeLayouts = findWrappingLayouts(route.path);
+      const routeVirtualPath = this.#getVirtualPath(route.path);
       const sourceFile = this.#project.createSourceFile(
-        relativePath,
+        routeVirtualPath,
         await Deno.readTextFile(route.path),
       );
       this.#sanitizeFile(sourceFile, route.path);
-      console.log(
-        routeLayouts,
+      routeLayouts = routeLayouts.map(
+        (virtualPath) => {
+          const layoutDistVirtualRelativePath = '.' + SEPARATOR + relative(
+            dirname(routeVirtualPath),
+            virtualPath,
+          );
+          return this.#resolveOutExtension(layoutDistVirtualRelativePath);
+        },
       );
-      this.#addBootstrap(
-        sourceFile,
-        routeLayouts.map(
-          (layout) => relative(layout, relativePath),
-        ),
-      );
+      this.#addBootstrap(sourceFile, routeLayouts);
       sourceFile.formatText();
       sourceFile.fixUnusedIdentifiers();
     }
@@ -738,9 +739,16 @@ class BuildContext {
 
   #projectDistDir = SEPARATOR + 'dist' + SEPARATOR;
 
-  #getProjectRelativePath(absPath: string) {
+  #getVirtualPath(absPath: string) {
     return this.#projectSrcDir +
       relative(this.#fsContext.resolvePath('.'), absPath);
+  }
+
+  #resolveOutExtension(path: string) {
+    if (path.endsWith('.tsx')) {
+      return path.slice(0, -4) + '.jsx';
+    }
+    return path.slice(0, -3) + '.js';
   }
 
   async initialize() {
@@ -769,16 +777,17 @@ class BuildContext {
       'export {}',
     );
 
-    // Add routes to project
     await this.#addRoutesToProject();
     // Add collections to project
     // TODO:
+
+    // Save project and emit result in memory fs
     await this.#project.save();
-    // Build collections and add to project
     await this.#emit();
+
     // Debug result
     this.#listProjectDir('/');
-    // Write memory fs to disk
+
     await this.#writeProjectToFileSystem(this.#projectDistDir);
   }
 
@@ -798,7 +807,10 @@ class BuildContext {
     const cookedDir = this.#fsContext.resolveFromOutDir('project');
     const projectFileSystem = this.#project.getFileSystem();
     for (const entry of projectFileSystem.readDirSync(path)) {
-      const path = join(cookedDir, entry.name);
+      const path = join(
+        cookedDir,
+        entry.name.slice(this.#projectDistDir.length),
+      );
       if (entry.isDirectory) {
         await createDirectoryIfNotExists(path);
         await this.#writeProjectToFileSystem(entry.name);
