@@ -16,7 +16,10 @@ import { join } from '@std/path/join';
 import { withHeadSupport } from './index.ts';
 import { renderRoute } from './render_route.ts';
 
-const wellKnownFileNames = new Set([MIDDLEWARE_FILE_NAME, LAYOUT_FILE_NAME]);
+export const wellKnownFileNames = new Set([
+  MIDDLEWARE_FILE_NAME,
+  LAYOUT_FILE_NAME,
+]);
 
 function isPageModule(obj: unknown): obj is PageModule {
   return typeof obj === 'object' && obj !== null && 'default' in obj &&

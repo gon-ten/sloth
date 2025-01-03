@@ -3,7 +3,6 @@ import { SEPARATOR } from '@std/path/constants';
 import { FsContext } from './lib/fs_context.ts';
 import {
   AppConfigDev,
-  CookedFiles,
   Interceptors,
   InterceptorsMap,
   Manifest,
@@ -24,10 +23,11 @@ import {
   extractInterceptors,
   findRouteInterceptors,
   iterateManifestRoutes,
+  wellKnownFileNames,
 } from './server/routes.ts';
 import { loadModule } from './utils/load_module.ts';
 import { join } from '@std/path/join';
-import { walk } from '@std/fs/walk';
+import { walk, WalkEntry } from '@std/fs/walk';
 import { resolve } from '@std/path/resolve';
 import * as esbuild from 'esbuild';
 import { verifyMetadata } from './server/metadata.ts';
@@ -35,21 +35,30 @@ import { denoPlugins } from '@luca/esbuild-deno-loader';
 import { createHash } from './utils/crypto.ts';
 import { executionContext } from './server/index.ts';
 import {
+  IndentationText,
   ModuleKind,
   ModuleResolutionKind,
+  NewLineKind,
   Project,
+  QuoteKind,
   ScriptTarget,
+  SourceFile,
+  SyntaxKind,
   ts,
+  VariableDeclarationKind,
 } from 'ts-morph';
 import { basename } from '@std/path/basename';
 import { extname } from '@std/path/extname';
+import { debounce } from '@std/async';
+import { TypedEvents } from './lib/typed_events.ts';
+import { LAYOUT_FILE_NAME } from './shared/constants.ts';
 
 async function generateManifest(
   { fsContext }: {
     fsContext: FsContext;
   },
 ): Promise<Manifest> {
-  const routes = await Array.fromAsync(fsContext.walkRoutes());
+  const routes = await Array.fromAsync(fsContext.walkRoutesDir());
   const rootDir = fsContext.resolvePath('.');
 
   const castPath = (filePath: string) =>
@@ -204,7 +213,7 @@ async function bundleClientSideAssets({
     target: 'Client Side Assets',
   });
 
-  await bundleClient({
+  const buildContext = await initializeBuildContext({
     mode,
     fsContext: fsContext,
     entryPoints: [
@@ -220,7 +229,13 @@ async function bundleClientSideAssets({
     },
   });
 
+  await buildContext.rebuild();
+
   await bundleAssets(fsContext);
+
+  return {
+    buildContext,
+  };
 }
 
 async function build({ fsContext, manifest, config, mode }: {
@@ -238,7 +253,7 @@ async function build({ fsContext, manifest, config, mode }: {
 
   config.plugins?.forEach((plugin) => plugin.setup(builder));
 
-  await bundleClientSideAssets({
+  const { buildContext } = await bundleClientSideAssets({
     fsContext,
     manifest,
     mode,
@@ -247,6 +262,9 @@ async function build({ fsContext, manifest, config, mode }: {
 
   await builder.wg.wait();
 
+  return { buildContext };
+
+  /*
   await Promise.all(
     ['client', 'routes'].map((dir) =>
       Deno.remove(fsContext.resolveFromOutDir(dir), { recursive: true }).catch(
@@ -254,18 +272,41 @@ async function build({ fsContext, manifest, config, mode }: {
       )
     ),
   );
+  */
 }
 
 export default async function (config: AppConfigDev) {
   const isBuild = Deno.args.includes('--build');
   const fsContext = new FsContext(config.baseUrl);
   const manifest = await generateManifest({ fsContext });
-  await build({
+
+  const { buildContext } = await build({
     fsContext,
     manifest,
     config,
     mode: isBuild ? 'production' : 'development',
   });
+
+  const watcher = new BuildWatcher(fsContext.resolvePath('.'));
+
+  /*
+  watcher.on('change', async (event) => {
+    if (event.kind === 'modify') {
+      const [path] = event.paths;
+      const ext = extname(path);
+      if (ext === '.ts' || ext === '.tsx') {
+        await buildContext.rebuild();
+      }
+    }
+  });
+
+  watcher.watch();
+  */
+
+  const buildCtx = new BuildContext(fsContext);
+
+  await buildCtx.initialize();
+
   if (!isBuild) {
     const mainModule = new URL(config.entryPoint, config.baseUrl).href;
     await import(mainModule);
@@ -390,7 +431,7 @@ async function copyPublicFiles(context: FsContext): Promise<void> {
   }
 }
 
-async function bundleClient({
+async function initializeBuildContext({
   entryPoints,
   define = {},
   outDir,
@@ -408,12 +449,12 @@ async function bundleClient({
   alias?: Record<string, string>;
   mode: Mode;
   external?: string[];
-}): Promise<CookedFiles> {
+}) {
   await createDirectoryIfNotExists(outDir);
 
   const absWorkingDir = fsContext.resolvePath('.');
 
-  const result = await esbuild.build({
+  const ctx = await esbuild.context({
     plugins: [
       ...plugins,
       ...denoPlugins({
@@ -456,35 +497,49 @@ async function bundleClient({
     write: false,
   });
 
-  const { outputFiles = [] } = result;
+  return {
+    async rebuild() {
+      const { outputFiles = [] } = await ctx.rebuild();
 
-  const paths: string[] = [];
-  const promises: Promise<void>[] = [];
-  for (const file of outputFiles) {
-    const filePath = fsContext.resolveFromOutDir(
-      'static',
-      relative(absWorkingDir, file.path),
-    );
-    promises.push(
-      Deno.writeFile(filePath, file.contents, {
-        createNew: true,
-      }),
-    );
-    entryPoints.push(filePath);
-  }
+      const paths: string[] = [];
+      const promises: Promise<void>[] = [];
+      for (const file of outputFiles) {
+        const filePath = fsContext.resolveFromOutDir(
+          'static',
+          relative(absWorkingDir, file.path),
+        );
+        const fileAlreadyExists = await exists(filePath);
+        if (fileAlreadyExists) {
+          await Deno.remove(filePath);
+        }
+        promises.push(
+          Deno.writeFile(filePath, file.contents, {
+            createNew: true,
+          }),
+        );
+        entryPoints.push(filePath);
+      }
 
-  await Promise.all(promises);
+      await Promise.all(promises);
 
-  await esbuild.stop();
+      // await esbuild.stop();
 
-  return paths;
+      return paths;
+    },
+  };
 }
 
 export async function prepareClientCode({ manifest, fsContext }: {
   manifest: Manifest;
   fsContext: FsContext;
 }) {
-  const tmpOutDir = await Deno.makeTempDir();
+  await createDirectoryIfNotExists(
+    fsContext.resolveFromOutDir('outttt'),
+  );
+
+  const tmpOutDir = await Deno.makeTempDir({
+    dir: fsContext.resolveFromOutDir('outttt'),
+  });
 
   const project = new Project({
     compilerOptions: {
@@ -582,4 +637,307 @@ export async function prepareClientCode({ manifest, fsContext }: {
   }
 
   return entryPoints;
+}
+
+class BuildContext {
+  #project!: Project;
+
+  #fsContext: FsContext;
+
+  constructor(fsContext: FsContext) {
+    this.#fsContext = fsContext;
+  }
+
+  #assertProjectInitialized() {
+    if (!this.#project) {
+      throw new Error('Project not initialized');
+    }
+  }
+
+  async #addCollectionsToProject() {
+  }
+
+  #extractLayouts(routesEntries: WalkEntry[]): Map<string, string> {
+    const layouts: Map<string, string> = new Map();
+    for (const entry of routesEntries) {
+      if (entry.name !== LAYOUT_FILE_NAME) {
+        continue;
+      }
+      const absRouteFilePath = entry.path.slice(0, -entry.name.length);
+      layouts.set(absRouteFilePath, entry.path);
+    }
+    return layouts;
+  }
+
+  async #addRoutesToProject() {
+    this.#assertProjectInitialized();
+
+    const filesInRoutes = await Array.fromAsync(
+      this.#fsContext.walkRoutesDir(),
+    );
+
+    const layouts = this.#extractLayouts(filesInRoutes);
+
+    const realPathMemoryPathMap = new Map<string, string>();
+
+    for (const [, layoutFilePath] of layouts.entries()) {
+      const relativePath = this.#getProjectRelativePath(layoutFilePath);
+      const sourceFile = this.#project.createSourceFile(
+        relativePath,
+        await Deno.readTextFile(layoutFilePath),
+      );
+      realPathMemoryPathMap.set(
+        layoutFilePath,
+        relativePath,
+      );
+      this.#sanitizeFile(sourceFile, layoutFilePath);
+    }
+
+    const findWrappingLayouts = (routePath: string) => {
+      const entryName = basename(routePath);
+      const parts = routePath.slice(0, -entryName.length).split(SEPARATOR);
+      let acc = SEPARATOR;
+      const routeLayouts: string[] = [];
+      for (const part of parts.slice(1, -1)) {
+        acc += part + SEPARATOR;
+        if (layouts.has(acc)) {
+          routeLayouts.push(
+            realPathMemoryPathMap.get(layouts.get(acc)!)!,
+          );
+        }
+      }
+      return routeLayouts;
+    };
+
+    for (const route of filesInRoutes) {
+      if (wellKnownFileNames.has(basename(route.path))) {
+        continue;
+      }
+      const routeLayouts = findWrappingLayouts(route.path);
+      const relativePath = this.#getProjectRelativePath(route.path);
+      const sourceFile = this.#project.createSourceFile(
+        relativePath,
+        await Deno.readTextFile(route.path),
+      );
+      this.#sanitizeFile(sourceFile, route.path);
+      console.log(
+        routeLayouts,
+      );
+      this.#addBootstrap(
+        sourceFile,
+        routeLayouts.map(
+          (layout) => relative(layout, relativePath),
+        ),
+      );
+      sourceFile.formatText();
+      sourceFile.fixUnusedIdentifiers();
+    }
+  }
+
+  #projectSrcDir = SEPARATOR + 'src' + SEPARATOR;
+
+  #projectDistDir = SEPARATOR + 'dist' + SEPARATOR;
+
+  #getProjectRelativePath(absPath: string) {
+    return this.#projectSrcDir +
+      relative(this.#fsContext.resolvePath('.'), absPath);
+  }
+
+  async initialize() {
+    this.#project = new Project({
+      compilerOptions: {
+        target: ScriptTarget.ES2015,
+        moduleResolution: ModuleResolutionKind.NodeNext,
+        module: ModuleKind.NodeNext,
+        jsx: ts.JsxEmit.Preserve,
+        jsxImportSource: 'preact',
+        outDir: this.#projectDistDir,
+      },
+      manipulationSettings: {
+        quoteKind: QuoteKind.Single,
+        indentationText: IndentationText.TwoSpaces,
+        newLineKind: NewLineKind.CarriageReturnLineFeed,
+        useTrailingCommas: false,
+        insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces: true,
+      },
+      useInMemoryFileSystem: true,
+    });
+
+    // Create source file to main project structure
+    this.#project.createSourceFile(
+      '/src/index.ts',
+      'export {}',
+    );
+
+    // Add routes to project
+    await this.#addRoutesToProject();
+    // Add collections to project
+    // TODO:
+    await this.#project.save();
+    // Build collections and add to project
+    await this.#emit();
+    // Debug result
+    this.#listProjectDir('/');
+    // Write memory fs to disk
+    await this.#writeProjectToFileSystem(this.#projectDistDir);
+  }
+
+  #listProjectDir(path: string) {
+    this.#assertProjectInitialized();
+    const projectFileSystem = this.#project.getFileSystem();
+    for (const entry of projectFileSystem.readDirSync(path)) {
+      if (entry.isDirectory) {
+        this.#listProjectDir(entry.name);
+      } else {
+        console.log(entry.name);
+      }
+    }
+  }
+
+  async #writeProjectToFileSystem(path: string) {
+    const cookedDir = this.#fsContext.resolveFromOutDir('project');
+    const projectFileSystem = this.#project.getFileSystem();
+    for (const entry of projectFileSystem.readDirSync(path)) {
+      const path = join(cookedDir, entry.name);
+      if (entry.isDirectory) {
+        await createDirectoryIfNotExists(path);
+        await this.#writeProjectToFileSystem(entry.name);
+      } else {
+        await Deno.writeTextFile(
+          path,
+          await projectFileSystem.readFile(entry.name),
+        );
+      }
+    }
+  }
+
+  async #emit() {
+    this.#assertProjectInitialized();
+    await this.#project.emit();
+  }
+
+  #addBootstrap(sourceFile: SourceFile, layouts: string[]) {
+    const bootstrapMod = import.meta.resolve('./browser/bootstrap.ts');
+    sourceFile.addImportDeclaration({
+      moduleSpecifier: bootstrapMod,
+      namedImports: ['bootstrap'],
+    });
+    const layoutImports: string[] = [];
+    for (const [index, layout] of layouts.entries()) {
+      const importName = `L${index}`;
+      sourceFile.addImportDeclaration({
+        moduleSpecifier: layout,
+        defaultImport: importName,
+      });
+      layoutImports.push(`{ Layout: ${importName}, hash: "" }`);
+    }
+    const layoutsVarName = 'layouts';
+    sourceFile.addVariableStatement({
+      declarationKind: VariableDeclarationKind.Const,
+      declarations: [
+        {
+          name: layoutsVarName,
+          initializer: `[${layoutImports.join(', ')}]`,
+        },
+      ],
+    });
+    const defaultExport = sourceFile.getDefaultExportSymbol();
+    const declarations = defaultExport?.getDeclarations();
+    if (!declarations) {
+      return;
+    }
+    const [declaration] = declarations;
+    if (declaration.getKind() !== SyntaxKind.FunctionDeclaration) {
+      return;
+    }
+    const name = defaultExport?.getFullyQualifiedName();
+    if (!name) {
+      return;
+    }
+    const symbolName = name.split('".').at(-1);
+    sourceFile.removeDefaultExport();
+    sourceFile.addStatements(
+      `bootstrap({ Page: ${symbolName}, hash: "", layouts: ${layoutsVarName} });`,
+    );
+  }
+
+  #sanitizeFile(sourceFile: SourceFile, fsPath: string) {
+    const entryName = basename(fsPath);
+
+    const absEntryPath = fsPath.slice(0, -entryName.length);
+
+    sourceFile.getImportDeclarations().forEach((importDeclaration) => {
+      const moduleSpecifier = importDeclaration.getModuleSpecifier();
+      const moduleSpecifierText = moduleSpecifier.getText().slice(1, -1);
+      if (moduleSpecifierText.startsWith('../')) {
+        const modulePath = resolve(absEntryPath, moduleSpecifierText);
+        importDeclaration.setModuleSpecifier(modulePath);
+      }
+    });
+
+    sourceFile.getVariableDeclarations().forEach((v) => {
+      if (v.isExported()) {
+        v.remove();
+      }
+    });
+
+    sourceFile.getFunctions().forEach((f) => {
+      if (f.isExported() && !f.isDefaultExport()) {
+        f.remove();
+      }
+    });
+
+    sourceFile.getExportDeclarations().forEach((exportDeclaration) => {
+      exportDeclaration.removeModuleSpecifier().remove();
+    });
+  }
+}
+
+enum WatcherStatus {
+  IDLE,
+  WATCHING,
+}
+
+type Watcher = {
+  status: WatcherStatus;
+  watch(): Promise<void>;
+  stop(): void;
+};
+
+type WatcherEventMap = {
+  change: (event: Deno.FsEvent) => Promise<void> | void;
+};
+
+class BuildWatcher extends TypedEvents<WatcherEventMap> implements Watcher {
+  readonly id = crypto.randomUUID();
+
+  #watcher: Deno.FsWatcher | undefined;
+
+  status = WatcherStatus.IDLE;
+
+  constructor(
+    private path: string,
+  ) {
+    super();
+  }
+
+  async watch() {
+    if (this.status === WatcherStatus.WATCHING) {
+      return;
+    }
+    this.#watcher = Deno.watchFs(this.path, {
+      recursive: true,
+    });
+    const emit = debounce((event: Deno.FsEvent) => {
+      this.emit('change', event);
+    }, 200);
+    for await (const event of this.#watcher) {
+      emit(event);
+    }
+  }
+
+  stop() {
+    this.#watcher?.close();
+    this.status = WatcherStatus.IDLE;
+  }
 }

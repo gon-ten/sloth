@@ -31,7 +31,7 @@ export class FsContext {
     return this.resolvePath('routes', ...segments);
   }
 
-  walkRoutes(): ReturnType<typeof walk> {
+  walkRoutesDir(): ReturnType<typeof walk> {
     return walk(this.resolvePath('routes'), {
       includeDirs: false,
       includeSymlinks: false,
