@@ -136,14 +136,14 @@ export async function renderRoute({
 
     for (const { middleware, layout } of interceptors) {
       if (middleware) {
-        const { path: modPath } = middleware;
-        const { handler } = await loadModule<MiddlewareModule>(modPath);
+        const { moduleSpecifier } = middleware;
+        const { handler } = await loadModule<MiddlewareModule>(moduleSpecifier);
         handlers.push(() => handler({ req, ctx }));
       }
 
       if (layout) {
-        const { hash, path: modPath } = layout;
-        const layoutModule = await loadModule<LayoutModule>(modPath);
+        const { hash, moduleSpecifier } = layout;
+        const layoutModule = await loadModule<LayoutModule>(moduleSpecifier);
         const { loader } = layoutModule;
         if (loader) {
           layouts.push({

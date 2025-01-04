@@ -16,6 +16,7 @@
     "@preact/signals-core": "npm:@preact/signals-core@1.8.0",
     "@sindresorhus/slugify": "npm:@sindresorhus/slugify@2.2.1",
     "@std/assert": "jsr:@std/assert@^1.0.6",
+    "@std/async": "jsr:@std/async@^1.0.9",
     "@std/collections": "jsr:@std/collections@^1.0.7",
     "@std/crypto": "jsr:@std/crypto@^1.0.3",
     "@std/dotenv": "jsr:@std/dotenv@^0.225.1",
@@ -40,7 +41,7 @@
     "rehype-highlight": "npm:rehype-highlight@7.0.0",
     "rehype-highlight-code-lines": "npm:rehype-highlight-code-lines@1.0.4",
     "tailwindcss": "npm:tailwindcss@^3.4.1",
-    "ts-morph": "jsr:@ts-morph/ts-morph@^24.0.0",
+    "ts-morph": "jsr:@ts-morph/ts-morph@^25.0.0",
     "unist-util-visit": "npm:unist-util-visit@5.0.0",
     "image-size": "npm:image-size@1.1.1"
   },

@@ -5,14 +5,14 @@ import type {
   PageConfig,
   PageProps,
 } from '@sloth/core';
-import { getCollection } from '@sloth/core/content';
+import { Collection, getCollection } from '@sloth/core/content';
 import * as v from '@valibot/valibot';
 import { BlogHeroImage } from '@/🧱/BlogHeroImage.tsx';
 import { LayoutRow } from '@/🧱/LayoutRow.tsx';
 import { ArrowLeft } from '../../icons/ArrowLeft.tsx';
 
 export const metadata: GenerateMetadataFunction<Params> = ({ params }) => {
-  const { metadata } = getCollection('blogs/' + params.lang).get(params.slug);
+  const { metadata } = getCollectionByLang(params.lang).get(params.slug);
   return {
     title: metadata.title,
     description: metadata.description,
@@ -23,7 +23,7 @@ export const pageConfig = {
   defineValidationSchemas() {
     return {
       params: v.object({
-        lang: v.string(),
+        lang: v.pipe(v.string(), v.picklist(['en', 'es'])),
         slug: v.string(),
       }),
     };
@@ -46,9 +46,14 @@ export const loader: Loader<void, Params> = ({ params, ctx }) => {
   return ctx.render();
 };
 
+const getCollectionByLang = (
+  lang: Params['lang'],
+): Collection<'blogs/es' | 'blogs/en'> => {
+  return getCollection('blogs/' + lang) as Collection<'blogs/es' | 'blogs/en'>;
+};
+
 export default function Blog({ params }: PageProps<void, Params>) {
-  const collectionName = 'blogs/' + params.lang;
-  const { Content, metadata } = getCollection(collectionName).get(
+  const { Content, metadata } = getCollectionByLang(params.lang).get(
     params.slug,
   );
 

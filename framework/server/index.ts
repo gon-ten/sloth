@@ -10,12 +10,12 @@ import {
 } from '@std/http';
 import { CollectionNotFoundError } from '../collections/errors.ts';
 import { internalServerError, notFound, ok } from './http_responses.ts';
-import { AppConfig } from '../types.ts';
+import { AppConfig, MetaFile } from '../types.ts';
 import { composeRoutes } from './routes.ts';
 import { createRobotsRoute } from './robots.ts';
-import { loadCollections } from '../collections/index.ts';
 import { h } from 'preact';
 import { renderToString } from 'preact-render-to-string';
+import { loadCollections } from '../collections/index.ts';
 
 const DEFAULT_PORT = 3443;
 
@@ -163,17 +163,23 @@ export function initServer({
 }
 
 export async function start(config: AppConfig) {
-  const fsContext = new FsContext(config.manifest.importMeta.url);
+  const fsContext = new FsContext(config.importMeta.url);
 
-  const routes = composeRoutes(
+  const metaFilePath = fsContext.resolveFromOutDir('project', 'meta.json');
+
+  const metaFile: MetaFile = await import(metaFilePath, {
+    with: { type: 'json' },
+  }).then((res) => res.default);
+
+  const routes = await composeRoutes(
     fsContext,
-    config.manifest,
+    metaFile,
   );
 
   const robotsRoute = await createRobotsRoute(fsContext);
 
   try {
-    await loadCollections({ fsContext });
+    await loadCollections({ metaFile });
   } catch (error) {
     console.error('Error loading collections', error);
   }

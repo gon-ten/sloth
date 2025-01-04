@@ -4,7 +4,7 @@ import type {
   PageConfig,
   PageProps,
 } from '@sloth/core';
-import { getCollection } from '@sloth/core/content';
+import { Collection, getCollection } from '@sloth/core/content';
 import * as v from '@valibot/valibot';
 import { LayoutRow } from '@/🧱/LayoutRow.tsx';
 
@@ -41,8 +41,14 @@ function formatDate(date: Date | string, lang: string) {
   return formatter.format(date instanceof Date ? date : new Date(date));
 }
 
+const getCollectionByLang = (
+  lang: Params['lang'],
+): Collection<'blogs/es' | 'blogs/en'> => {
+  return getCollection('blogs/' + lang) as Collection<'blogs/es' | 'blogs/en'>;
+};
+
 export default function BlogIndex({ params }: PageProps<void, Params>) {
-  const { Provider } = getCollection('blogs/' + params.lang).all();
+  const { Provider } = getCollectionByLang(params.lang).all();
 
   return (
     <>

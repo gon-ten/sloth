@@ -21,24 +21,12 @@ export type BaseConfig = {
   plugins?: Plugin[];
 };
 
-export type Manifest = {
-  importMeta: ImportMeta;
-  routes: {
-    [path: string]: [
-      hash: string,
-      mod: unknown,
-    ];
-  };
-  collections: {
-    config: CollectionsConfigMod;
-  };
-};
-
 export type AppConfigDev = {
-  baseUrl: string;
+  importMeta: ImportMeta;
   entryPoint: string;
   config: BaseConfig;
   plugins: Plugin[];
+  debug?: boolean;
   esbuildConfig?: Pick<
     import('esbuild').BuildOptions,
     'define' | 'external'
@@ -46,7 +34,7 @@ export type AppConfigDev = {
 };
 
 export type AppConfig = {
-  manifest: Manifest;
+  importMeta: ImportMeta;
 };
 
 export type RootProps<S extends unknown> = {
@@ -133,7 +121,8 @@ export type CookedFiles = string[];
 
 export type CollectionModule = {
   default: () => VNode;
-  frontmatter: Record<string, string | string[]>;
+  toc: CollectionToc;
+  metadata: DefaultCollectionMetadata;
 };
 
 export type InferArrayType<A extends Array<unknown>> = A extends Array<infer T>
@@ -215,14 +204,8 @@ export type AbsolutePath = string;
 export type FileName = string;
 
 export type Interceptors = {
-  middleware?: {
-    hash: string;
-    path: string;
-  };
-  layout?: {
-    hash: string;
-    path: string;
-  };
+  middleware?: MetaFileMiddleware;
+  layout?: MetaFileLayout;
 };
 
 type ValidateShape = {
@@ -255,13 +238,15 @@ export type InferValidateOptions<
 
 export type CollectionName = string;
 
+export type DefaultCollectionEntry = {
+  entries: string;
+  metadata: JSONObject;
+  Content: ComponentType<unknown>;
+  toc: CollectionToc;
+};
+
 export type CollectionsMap = {
-  [key: string]: {
-    entries: string;
-    metadata: v.InferOutput<v.AnySchema>;
-    Content: ComponentType<unknown>;
-    toc: CollectionToc;
-  };
+  [key: string]: DefaultCollectionEntry;
 };
 
 export type GetCollectionEntryResult<C extends CollectionName> = Pick<
@@ -291,3 +276,50 @@ export type CollectionMapEntry = {
   Content: ComponentType<MDXComponentProps>;
   toc: CollectionToc;
 };
+
+export type MetaFileLayout = {
+  hash: string;
+  moduleSpecifier: string;
+};
+
+export type MetaFileMiddleware = {
+  hash: string;
+  moduleSpecifier: string;
+};
+
+export type MetaFile = {
+  routes: {
+    [path: string]: {
+      hash: string;
+      interceptors: Interceptors[];
+    };
+  };
+  collections: {
+    [collectionName: string]: {
+      [collectionEntryName: string]: {
+        hash: string;
+        moduleSpecifier: string;
+      };
+    };
+  };
+};
+
+type JSONValue = string | number | boolean | null | JSONObject | JSONValue[];
+
+export type JSONObject = {
+  [key: string | number]: JSONValue;
+};
+
+// deno-lint-ignore ban-types
+export type AnyString = string & {};
+
+export interface UnknownCollection {
+  get<E extends AnyString>(
+    collectionEntryName: E,
+  ): Omit<DefaultCollectionEntry, 'entries'>;
+  has<E extends AnyString>(collectionEntryName: E): boolean;
+  all(): {
+    Provider: CollectionsAllProvider<JSONObject>;
+  };
+  keys(): ReadonlyArray<string>;
+}
