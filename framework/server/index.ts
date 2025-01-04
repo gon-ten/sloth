@@ -163,7 +163,7 @@ export function initServer({
 }
 
 export async function start(config: AppConfig) {
-  const fsContext = new FsContext(config.importMeta.url);
+  const fsContext = new FsContext(config.baseUrl);
 
   const metaFilePath = fsContext.resolveFromOutDir('project', 'meta.json');
 

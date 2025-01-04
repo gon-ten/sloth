@@ -22,7 +22,7 @@ export type BaseConfig = {
 };
 
 export type AppConfigDev = {
-  importMeta: ImportMeta;
+  baseUrl: string;
   entryPoint: string;
   config: BaseConfig;
   plugins: Plugin[];
@@ -34,7 +34,7 @@ export type AppConfigDev = {
 };
 
 export type AppConfig = {
-  importMeta: ImportMeta;
+  baseUrl: string;
 };
 
 export type RootProps<S extends unknown> = {

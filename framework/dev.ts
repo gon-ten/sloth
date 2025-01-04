@@ -42,7 +42,7 @@ import { executionContext } from './server/index.ts';
 
 export default async function (config: AppConfigDev) {
   const isBuild = Deno.args.includes('--build');
-  const fsContext = new FsContext(config.importMeta.url);
+  const fsContext = new FsContext(config.baseUrl);
 
   executionContext.isDev = !isBuild;
 
@@ -55,7 +55,7 @@ export default async function (config: AppConfigDev) {
   await buildCtx.initialize();
 
   if (!isBuild) {
-    const mainModule = new URL(config.entryPoint, config.importMeta.url).href;
+    const mainModule = new URL(config.entryPoint, config.baseUrl).href;
     await import(mainModule);
   }
 }
@@ -369,7 +369,7 @@ class BuildContext implements Disposable {
         });
 
         sourceFile.addImportDeclaration({
-          moduleSpecifier: this.#config.importMeta.resolve(
+          moduleSpecifier: this.#fsContext.resolvePath(
             './collections/config.ts',
           ),
           isTypeOnly: true,

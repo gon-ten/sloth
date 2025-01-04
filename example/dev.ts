@@ -3,7 +3,7 @@ import { config } from './config.ts';
 import { PluginTailwind } from '@sloth/core/plugins';
 
 await dev({
-  importMeta: import.meta,
+  baseUrl: import.meta.url,
   entryPoint: './main.ts',
   config,
   plugins: [

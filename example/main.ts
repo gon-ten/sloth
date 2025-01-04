@@ -1,6 +1,6 @@
 import { start } from '@sloth/core/server';
 
-await start({ importMeta: import.meta });
+await start({ baseUrl: import.meta.url });
 
 /*
 import { exists } from '@std/fs';
