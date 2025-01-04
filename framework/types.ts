@@ -304,6 +304,10 @@ export type MetaFile = {
   };
 };
 
+export type MetaFileModule = {
+  default: MetaFile;
+};
+
 type JSONValue = string | number | boolean | null | JSONObject | JSONValue[];
 
 export type JSONObject = {
