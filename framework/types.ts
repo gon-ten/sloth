@@ -22,7 +22,7 @@ export type BaseConfig = {
 };
 
 export type AppConfigDev = {
-  baseUrl: string;
+  importMeta: ImportMeta;
   entryPoint: string;
   config: BaseConfig;
   plugins: Plugin[];
@@ -238,13 +238,15 @@ export type InferValidateOptions<
 
 export type CollectionName = string;
 
+export type DefaultCollectionEntry = {
+  entries: string;
+  metadata: JSONObject;
+  Content: ComponentType<unknown>;
+  toc: CollectionToc;
+};
+
 export type CollectionsMap = {
-  [key: string]: {
-    entries: string;
-    metadata: v.InferOutput<v.AnySchema>;
-    Content: ComponentType<unknown>;
-    toc: CollectionToc;
-  };
+  [key: string]: DefaultCollectionEntry;
 };
 
 export type GetCollectionEntryResult<C extends CollectionName> = Pick<
@@ -301,3 +303,23 @@ export type MetaFile = {
     };
   };
 };
+
+type JSONValue = string | number | boolean | null | JSONObject | JSONValue[];
+
+export type JSONObject = {
+  [key: string | number]: JSONValue;
+};
+
+// deno-lint-ignore ban-types
+export type AnyString = string & {};
+
+export interface UnknownCollection {
+  get<E extends AnyString>(
+    collectionEntryName: E,
+  ): Omit<DefaultCollectionEntry, 'entries'>;
+  has<E extends AnyString>(collectionEntryName: E): boolean;
+  all(): {
+    Provider: CollectionsAllProvider<JSONObject>;
+  };
+  keys(): ReadonlyArray<string>;
+}

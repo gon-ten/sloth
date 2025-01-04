@@ -8,6 +8,7 @@ export type {
   GenerateMetadataFunction,
   InferLoaderReturnType,
   InferValidateOptions,
+  JSONObject,
   Layout,
   LayoutLoader,
   LayoutProps,

@@ -35,7 +35,10 @@ export const config = {
         },
       ),
       tags: v.array(v.string()),
-      publishingDate: v.date(),
+      publishingDate: v.pipe(
+        v.date(),
+        v.transform((date) => date.toISOString()),
+      ),
     }),
   },
 } satisfies CollectionsConfig;

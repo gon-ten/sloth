@@ -9,7 +9,7 @@ import {
 import { relative } from '@std/path/relative';
 import { exists } from '@std/fs/exists';
 import {
-  compileCollection,
+  compileCollections,
   readCollectionsConfig,
 } from './collections/index.ts';
 import { createDirectoryIfNotExists } from './utils/fs.ts';
@@ -35,8 +35,6 @@ import {
 } from 'ts-morph';
 import { basename } from '@std/path/basename';
 import { extname } from '@std/path/extname';
-import { debounce } from '@std/async';
-import { TypedEvents } from './lib/typed_events.ts';
 import { LAYOUT_FILE_NAME, MIDDLEWARE_FILE_NAME } from './shared/constants.ts';
 import { dirname } from '@std/path/dirname';
 import { Builder } from './plugins/index.ts';
@@ -44,7 +42,7 @@ import { executionContext } from './server/index.ts';
 
 export default async function (config: AppConfigDev) {
   const isBuild = Deno.args.includes('--build');
-  const fsContext = new FsContext(config.baseUrl);
+  const fsContext = new FsContext(config.importMeta.url);
 
   executionContext.isDev = !isBuild;
 
@@ -52,28 +50,12 @@ export default async function (config: AppConfigDev) {
   await Deno.remove(outDir, { recursive: true }).catch(() => null);
   await Deno.mkdir(outDir, { recursive: true }).catch(() => null);
 
-  // const watcher = new BuildWatcher(fsContext.resolvePath('.'));
-
-  /*
-  watcher.on('change', async (event) => {
-    if (event.kind === 'modify') {
-      const [path] = event.paths;
-      const ext = extname(path);
-      if (ext === '.ts' || ext === '.tsx') {
-        await buildContext.rebuild();
-      }
-    }
-  });
-
-  watcher.watch();
-  */
-
   using buildCtx = new BuildContext(fsContext, config);
 
   await buildCtx.initialize();
 
   if (!isBuild) {
-    const mainModule = new URL(config.entryPoint, config.baseUrl).href;
+    const mainModule = new URL(config.entryPoint, config.importMeta.url).href;
     await import(mainModule);
   }
 }
@@ -182,7 +164,6 @@ class BuildContext implements Disposable {
     const layoutsPathRelation = new Map<string, string>();
 
     for (const [, { moduleSpecifier, virtualPath }] of layouts.entries()) {
-      console.log({ virtualPath });
       const sourceFile = this.#project.createSourceFile(
         virtualPath,
         await Deno.readTextFile(moduleSpecifier),
@@ -269,7 +250,10 @@ class BuildContext implements Disposable {
   }
 
   #resolveFileExtension(path: string) {
-    if (path.endsWith('.tsx') || path.endsWith('.mdx')) {
+    if (path.endsWith('.mdx') || path.endsWith('.md')) {
+      return path.slice(0, -4) + '.tsx';
+    }
+    if (path.endsWith('.tsx')) {
       return path.slice(0, -4) + '.jsx';
     }
     return path.slice(0, -3) + '.js';
@@ -284,79 +268,259 @@ class BuildContext implements Disposable {
   async #addCollectionsToProject(): Promise<
     MetaFile['collections']
   > {
-    const collections = await Array.fromAsync(
-      this.#fsContext.walkCollectionsDir(),
+    const collectionsIndexSourceFile = this.#project.createSourceFile(
+      '/src/collections/collections.ts',
     );
+
+    collectionsIndexSourceFile.addImportDeclaration({
+      moduleSpecifier: '@sloth/core/content',
+      isTypeOnly: true,
+      namedImports: [
+        'AnyString',
+        'CollectionToc',
+        'CollectionsAllProvider',
+        'JSONObject',
+        'CollectionsMap as DefaultCollectionsMap',
+        'UnknownCollection',
+      ],
+    });
+
+    const modDeclaration = collectionsIndexSourceFile.addModule({
+      name: JSON.stringify('@sloth/core/content'),
+    });
+
+    collectionsIndexSourceFile.addInterface({
+      name: 'ICollection',
+      typeParameters: ['C extends ICollectionName'],
+      isExported: true,
+      methods: [
+        {
+          name: 'get',
+          typeParameters: [
+            'E extends ICollectionsMap[C]["entries"] | AnyString',
+          ],
+          parameters: [
+            { name: 'collectionEntryName', type: 'E' },
+          ],
+          returnType: "Omit<ICollectionsMap[C], 'entries'>",
+        },
+        {
+          name: 'has',
+          typeParameters: ['E extends keyof ICollectionsMap[C]'],
+          parameters: [
+            { name: 'collectionEntryName', type: 'E | AnyString' },
+          ],
+          returnType: 'boolean',
+        },
+        {
+          name: 'all',
+          returnType:
+            '{ Provider: CollectionsAllProvider<ICollectionsMap[C]["metadata"]>; }',
+        },
+        {
+          name: 'keys',
+          returnType: 'ReadonlyArray<ICollectionsMap[C]["entries"]>',
+        },
+      ],
+    });
 
     const meta: MetaFile['collections'] = {};
 
-    const config: CollectionsConfig = await readCollectionsConfig(
-      this.#fsContext,
+    const configPath = this.#fsContext.resolvePath(
+      './collections/config.ts',
     );
 
-    for (const entry of collections) {
-      const { content, toc, metadata, collectionEntryName, collectionName } =
-        await compileCollection({
-          filePath: entry.path,
-          fsContext: this.#fsContext,
-          config,
+    const config: CollectionsConfig = await readCollectionsConfig(
+      configPath,
+    );
+
+    const compileResult = await compileCollections({
+      fsContext: this.#fsContext,
+      config,
+    });
+
+    for (
+      const [collectionName, { entries, configPath }] of Object.entries(
+        compileResult,
+      )
+    ) {
+      for (
+        const [collectionEntryName, { content, metadata, relativePath, toc }]
+          of Object.entries(entries)
+      ) {
+        const hash = await md5(relativePath);
+
+        const ext = extname(relativePath);
+        const pathWithHash =
+          relativePath.slice(0, -basename(relativePath).length) + hash + ext;
+
+        const virtualPath = this.#resolveFileExtension(
+          this.#getVirtualPath(pathWithHash),
+        );
+
+        const sourceFile = this.#project.createSourceFile(
+          virtualPath,
+          content,
+        );
+
+        sourceFile.addImportDeclaration({
+          moduleSpecifier: '@sloth/core/content',
+          namedImports: ['CollectionToc', 'JSONObject'],
         });
 
-      const hash = await md5(entry.path);
+        sourceFile.addImportDeclaration({
+          moduleSpecifier: this.#config.importMeta.resolve(
+            './collections/config.ts',
+          ),
+          isTypeOnly: true,
+          namedImports: ['config'],
+        });
 
-      // const ext = extname(entry.path);
-      const pathWithHash = entry.path.slice(0, -entry.name.length) + hash +
-        '.tsx';
+        sourceFile.addImportDeclaration({
+          moduleSpecifier: '@valibot/valibot',
+          isTypeOnly: true,
+          namespaceImport: 'v',
+        });
 
-      const virtualPath = this.#getVirtualPath(pathWithHash);
+        sourceFile.addTypeAlias({
+          name: 'Metadata',
+          type: configPath
+            ? `v.InferOutput<typeof config["${configPath}"]["schema"]>`
+            : 'JSONObject',
+        });
 
-      const sourceFile = this.#project.createSourceFile(
-        virtualPath,
-        content,
-      );
+        sourceFile.addImportDeclaration({
+          moduleSpecifier: 'preact',
+          namedImports: ['VNode'],
+          isTypeOnly: true,
+        });
 
-      // sourceFile.insertText(0, '// @ts-nocheck\n');
+        sourceFile.getFunction('MDXContent')?.setReturnType('VNode<{}>');
 
-      sourceFile.addImportDeclaration({
-        moduleSpecifier: '@sloth/core',
-        namedImports: ['CollectionToc'],
-      });
+        sourceFile.addVariableStatements(
+          [
+            {
+              isExported: true,
+              declarationKind: VariableDeclarationKind.Const,
+              declarations: [
+                {
+                  name: 'toc',
+                  type: 'CollectionToc',
+                  initializer: JSON.stringify(toc),
+                },
+              ],
+            },
+            {
+              isExported: true,
+              declarationKind: VariableDeclarationKind.Const,
+              declarations: [
+                {
+                  name: 'metadata',
+                  initializer: JSON.stringify(metadata),
+                  type: 'Metadata',
+                },
+              ],
+            },
+          ],
+        );
 
-      sourceFile.addVariableStatements(
-        [
-          {
-            isExported: true,
-            declarationKind: VariableDeclarationKind.Const,
-            declarations: [
-              {
-                name: 'toc',
-                type: 'CollectionToc',
-                initializer: JSON.stringify(toc),
-              },
-            ],
-          },
-          {
-            isExported: true,
-            declarationKind: VariableDeclarationKind.Const,
-            declarations: [
-              {
-                name: 'metadata',
-                initializer: JSON.stringify(metadata),
-              },
-            ],
-          },
-        ],
-      );
-
-      meta[collectionName] ??= {};
-      meta[collectionName][collectionEntryName] = {
-        hash,
-        moduleSpecifier: this.#fsContext.resolveFromOutDir(
-          'project',
-          this.#resolveOutFilePath(virtualPath),
-        ),
-      };
+        meta[collectionName] ??= {};
+        meta[collectionName][collectionEntryName] = {
+          hash,
+          moduleSpecifier: this.#fsContext.resolveFromOutDir(
+            'project',
+            this.#resolveOutFilePath(virtualPath),
+          ),
+        };
+      }
     }
+
+    collectionsIndexSourceFile.addImportDeclarations([
+      {
+        moduleSpecifier: '@valibot/valibot',
+        isTypeOnly: true,
+        namespaceImport: 'v',
+      },
+      {
+        moduleSpecifier: 'preact',
+        namedImports: ['ComponentType'],
+        isTypeOnly: true,
+      },
+      {
+        moduleSpecifier: configPath,
+        namedImports: ['config'],
+        isTypeOnly: true,
+      },
+    ]);
+
+    modDeclaration.addTypeAliases([
+      {
+        name: 'CollectionName',
+        type: 'keyof ICollectionsMap',
+        isExported: true,
+      },
+      {
+        name: 'Collection',
+        typeParameters: ['C extends ICollectionName'],
+        type: 'ICollection<C>',
+        isExported: true,
+      },
+    ]);
+    modDeclaration.addFunction(
+      {
+        name: 'getCollection',
+        isExported: true,
+        typeParameters: ['C extends AnyString'],
+        parameters: [
+          { name: 'collectionName', type: 'C' },
+        ],
+        returnType: 'UnknownCollection',
+        overloads: Object.keys(compileResult).map(
+          (collectionName) => {
+            return {
+              parameters: [
+                {
+                  name: 'collectionName',
+                  type: JSON.stringify(collectionName),
+                },
+              ],
+              returnType: `ICollection<${JSON.stringify(collectionName)}>`,
+            };
+          },
+        ),
+      },
+    );
+
+    collectionsIndexSourceFile.addInterface({
+      name: 'ICollectionsMap',
+      properties: Object.entries(compileResult).map(
+        ([collectionName, { entries, configPath }]) => {
+          return {
+            name: JSON.stringify(collectionName),
+            type: (writer) => {
+              writer.writeLine('{');
+              writer.writeLine(
+                `entries: '${Object.keys(entries).join("'|'")}';`,
+              );
+              writer.write('metadata: ');
+              writer.write(
+                configPath
+                  ? `v.InferOutput<typeof config['${configPath}']['schema']>;`
+                  : 'JSONObject;',
+              );
+              writer.writeLine('Content: ComponentType<unknown>;');
+              writer.writeLine('toc: CollectionToc;');
+              writer.writeLine('}');
+            },
+          };
+        },
+      ),
+    });
+
+    collectionsIndexSourceFile.addTypeAlias({
+      name: 'ICollectionName',
+      type: 'keyof ICollectionsMap',
+    });
 
     return meta;
   }
@@ -365,7 +529,7 @@ class BuildContext implements Disposable {
     this.#project = new Project({
       compilerOptions: {
         target: ScriptTarget.ESNext,
-        moduleResolution: ModuleResolutionKind.NodeNext,
+        moduleResolution: ModuleResolutionKind.Node16,
         module: ModuleKind.ESNext,
         jsx: ts.JsxEmit.Preserve,
         jsxImportSource: 'preact',
@@ -373,6 +537,8 @@ class BuildContext implements Disposable {
         allowJs: true,
         declaration: true,
         declarationDir: this.#projectDistDir,
+        baseUrl: '/',
+        allowImportingTsExtensions: true,
       },
       manipulationSettings: {
         quoteKind: QuoteKind.Single,
@@ -396,17 +562,14 @@ class BuildContext implements Disposable {
       collections: collectionsMeta,
     };
 
-    // Save project and emit result in memory fs
     await this.#project.save();
     await this.#emit();
 
-    // Debug result
     if (this.#config.debug) {
       this.#listProjectDir('/');
     }
 
     await this.#writeProjectToFileSystem(this.#projectDistDir);
-    // await this.#writeProjectToFileSystem(this.#projectSrcDir);
 
     await this.#bundle();
     await this.#copyStaticAssets();
@@ -645,54 +808,5 @@ class BuildContext implements Disposable {
       await this.#bundleContext.cancel();
       await esbuild.stop();
     }
-  }
-}
-
-enum WatcherStatus {
-  IDLE,
-  WATCHING,
-}
-
-type Watcher = {
-  status: WatcherStatus;
-  watch(): Promise<void>;
-  stop(): void;
-};
-
-type WatcherEventMap = {
-  change: (event: Deno.FsEvent) => Promise<void> | void;
-};
-
-class BuildWatcher extends TypedEvents<WatcherEventMap> implements Watcher {
-  readonly id = crypto.randomUUID();
-
-  #watcher: Deno.FsWatcher | undefined;
-
-  status = WatcherStatus.IDLE;
-
-  constructor(
-    private path: string,
-  ) {
-    super();
-  }
-
-  async watch() {
-    if (this.status === WatcherStatus.WATCHING) {
-      return;
-    }
-    this.#watcher = Deno.watchFs(this.path, {
-      recursive: true,
-    });
-    const emit = debounce((event: Deno.FsEvent) => {
-      this.emit('change', event);
-    }, 200);
-    for await (const event of this.#watcher) {
-      emit(event);
-    }
-  }
-
-  stop() {
-    this.#watcher?.close();
-    this.status = WatcherStatus.IDLE;
   }
 }
