@@ -1,6 +1,6 @@
 {
   "name": "@sloth/core",
-  "version": "0.0.4-beta.1",
+  "version": "0.0.4-beta.2",
   "exports": {
     ".": "./mod.ts",
     "./runtime": "./runtime.ts",
