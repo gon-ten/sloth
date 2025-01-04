@@ -21,24 +21,12 @@ export type BaseConfig = {
   plugins?: Plugin[];
 };
 
-export type Manifest = {
-  importMeta: ImportMeta;
-  routes: {
-    [path: string]: [
-      hash: string,
-      mod: unknown,
-    ];
-  };
-  collections: {
-    config: CollectionsConfigMod;
-  };
-};
-
 export type AppConfigDev = {
   baseUrl: string;
   entryPoint: string;
   config: BaseConfig;
   plugins: Plugin[];
+  debug?: boolean;
   esbuildConfig?: Pick<
     import('esbuild').BuildOptions,
     'define' | 'external'
@@ -46,7 +34,7 @@ export type AppConfigDev = {
 };
 
 export type AppConfig = {
-  manifest: Manifest;
+  importMeta: ImportMeta;
 };
 
 export type RootProps<S extends unknown> = {
@@ -133,7 +121,8 @@ export type CookedFiles = string[];
 
 export type CollectionModule = {
   default: () => VNode;
-  frontmatter: Record<string, string | string[]>;
+  toc: CollectionToc;
+  metadata: DefaultCollectionMetadata;
 };
 
 export type InferArrayType<A extends Array<unknown>> = A extends Array<infer T>
@@ -215,14 +204,8 @@ export type AbsolutePath = string;
 export type FileName = string;
 
 export type Interceptors = {
-  middleware?: {
-    hash: string;
-    path: string;
-  };
-  layout?: {
-    hash: string;
-    path: string;
-  };
+  middleware?: MetaFileMiddleware;
+  layout?: MetaFileLayout;
 };
 
 type ValidateShape = {
@@ -290,4 +273,31 @@ export type CollectionMapEntry = {
   metadata: DefaultCollectionMetadata;
   Content: ComponentType<MDXComponentProps>;
   toc: CollectionToc;
+};
+
+export type MetaFileLayout = {
+  hash: string;
+  moduleSpecifier: string;
+};
+
+export type MetaFileMiddleware = {
+  hash: string;
+  moduleSpecifier: string;
+};
+
+export type MetaFile = {
+  routes: {
+    [path: string]: {
+      hash: string;
+      interceptors: Interceptors[];
+    };
+  };
+  collections: {
+    [collectionName: string]: {
+      [collectionEntryName: string]: {
+        hash: string;
+        moduleSpecifier: string;
+      };
+    };
+  };
 };

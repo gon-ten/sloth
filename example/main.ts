@@ -1,7 +1,6 @@
 import { start } from '@sloth/core/server';
-import { manifest } from './manifest.gen.ts';
 
-await start({ manifest });
+await start({ importMeta: import.meta });
 
 /*
 import { exists } from '@std/fs';

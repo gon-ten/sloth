@@ -3,9 +3,11 @@
   "specifiers": {
     "jsr:@david/code-block-writer@13": "13.0.3",
     "jsr:@luca/esbuild-deno-loader@0.11.0": "0.11.0",
+    "jsr:@sloth/core@0.0.3-beta.7": "0.0.3-beta.7",
     "jsr:@std/assert@^1.0.6": "1.0.8",
     "jsr:@std/assert@^1.0.8": "1.0.8",
     "jsr:@std/async@^1.0.8": "1.0.9",
+    "jsr:@std/async@^1.0.9": "1.0.9",
     "jsr:@std/bytes@^1.0.2": "1.0.4",
     "jsr:@std/cli@^1.0.6": "1.0.8",
     "jsr:@std/collections@^1.0.7": "1.0.9",
@@ -76,6 +78,38 @@
         "jsr:@std/bytes",
         "jsr:@std/encoding@^1.0.5",
         "jsr:@std/path@^1.0.6"
+      ]
+    },
+    "@sloth/core@0.0.3-beta.7": {
+      "integrity": "af188d10b1fac30525ba6013b34dd20e1f20242670dcd8ac5c1481f534f4a5e4",
+      "dependencies": [
+        "jsr:@luca/esbuild-deno-loader",
+        "jsr:@std/collections@^1.0.7",
+        "jsr:@std/crypto",
+        "jsr:@std/encoding@^1.0.3",
+        "jsr:@std/fmt@^1.0.1",
+        "jsr:@std/front-matter",
+        "jsr:@std/fs@^1.0.2",
+        "jsr:@std/http",
+        "jsr:@std/io",
+        "jsr:@std/media-types",
+        "jsr:@std/path@^1.0.3",
+        "jsr:@ts-morph/ts-morph",
+        "jsr:@valibot/valibot",
+        "npm:@mdx-js/mdx",
+        "npm:@sindresorhus/slugify",
+        "npm:autoprefixer",
+        "npm:cssnano",
+        "npm:esbuild",
+        "npm:image-size",
+        "npm:lowlight",
+        "npm:postcss",
+        "npm:preact",
+        "npm:preact-render-to-string",
+        "npm:rehype-highlight",
+        "npm:rehype-highlight-code-lines",
+        "npm:tailwindcss@^3.4.1",
+        "npm:unist-util-visit"
       ]
     },
     "@std/assert@1.0.6": {
@@ -197,7 +231,7 @@
       "integrity": "6e693cbec94c81a1ad3df668685c7ba8e20742bb10305bc7137faa5cf16d2ec4",
       "dependencies": [
         "jsr:@std/assert@^1.0.8",
-        "jsr:@std/async",
+        "jsr:@std/async@^1.0.8",
         "jsr:@std/data-structures",
         "jsr:@std/fs@^1.0.5",
         "jsr:@std/internal@^1.0.5",
@@ -2756,7 +2790,7 @@
     "members": {
       "example": {
         "dependencies": [
-          "jsr:@sloth/core@0.0.3-beta.5",
+          "jsr:@sloth/core@0.0.3-beta.7",
           "jsr:@std/dotenv@~0.225.1",
           "jsr:@std/fs@^1.0.2",
           "jsr:@std/http@1.0.9",
@@ -2776,6 +2810,7 @@
         "dependencies": [
           "jsr:@luca/esbuild-deno-loader@0.11.0",
           "jsr:@std/assert@^1.0.6",
+          "jsr:@std/async@^1.0.9",
           "jsr:@std/collections@^1.0.7",
           "jsr:@std/crypto@^1.0.3",
           "jsr:@std/dotenv@~0.225.1",

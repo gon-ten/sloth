@@ -39,7 +39,7 @@ export class FsContext {
     });
   }
 
-  walkCollections(): ReturnType<typeof walk> {
+  walkCollectionsDir(): ReturnType<typeof walk> {
     return walk(this.resolvePath('collections'), {
       includeDirs: false,
       includeSymlinks: false,

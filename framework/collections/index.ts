@@ -28,6 +28,7 @@ import type {
   CollectionToc,
   DefaultCollectionMetadata,
   MDXComponentProps,
+  MetaFile,
 } from '../types.ts';
 import { createDirectoryIfNotExists, fileNameWithNoExt } from '../utils/fs.ts';
 import { loadModule } from '../utils/load_module.ts';
@@ -36,6 +37,8 @@ import ImageSizeRehypePlugin from './rehype-plugins/image-size.ts';
 import ListPrefixerRehypePlugin from './rehype-plugins/list-prefixer.ts';
 import TocRehypePlugin, { Toc } from './rehype-plugins/toc.ts';
 import { createHash } from '../utils/crypto.ts';
+import { basename } from '@std/path/basename';
+import { extname } from '@std/path/extname';
 
 type CollectionManifestModule = {
   collectionManifest: CollectionManifest;
@@ -172,7 +175,7 @@ export async function buildCollections(
     '.' + SEPARATOR + relative(rootDir, path)
   );
 
-  for await (const file of fsContext.walkCollections()) {
+  for await (const file of fsContext.walkCollectionsDir()) {
     const hash = createHash();
     const content = await Deno.readTextFile(file.path);
 
@@ -191,14 +194,14 @@ export async function buildCollections(
       );
     }
 
-    const baseUrl = file.path.slice(0, -file.name.length);
+    const basePath = file.path.slice(0, -file.name.length);
 
     let collectionToc: CollectionMapEntry['toc'] = [];
 
     const result = await compile(bodyToCompile, {
       outputFormat: 'program',
       jsxImportSource: 'preact',
-      baseUrl: toFileUrl(baseUrl),
+      baseUrl: toFileUrl(basePath),
       rehypePlugins: [
         ImageSizeRehypePlugin({
           pathResolver: (imageSrc) =>
@@ -392,39 +395,150 @@ export async function buildCollections(
 }
 
 export async function loadCollections(
-  { fsContext }: { fsContext: FsContext },
+  { metaFile }: { metaFile: MetaFile },
 ) {
-  const mainfestFile = resolveManifestPath(fsContext);
+  for (
+    const [collectionName, collectionEntries] of Object.entries(
+      metaFile.collections,
+    )
+  ) {
+    for (
+      const [collectionEntryName, { hash, moduleSpecifier }] of Object.entries(
+        collectionEntries,
+      )
+    ) {
+      const { default: Content, toc, metadata } = await loadModule<
+        CollectionModule
+      >(moduleSpecifier);
 
-  if (!(await exists(mainfestFile))) {
-    throw Error('Collections manifest file not found. Run build step first');
+      if (!collectionsMap.has(collectionName)) {
+        collectionsMap.set(collectionName, {});
+      }
+
+      collectionsMap.get(collectionName)![collectionEntryName] = {
+        Content: withMetadata({
+          hash,
+          Content,
+          metadata,
+          collectionName,
+          collectionEntryName,
+          toc,
+        }),
+        metadata,
+        toc,
+      };
+    }
   }
 
-  const { collectionManifest } = await loadModule<CollectionManifestModule>(
-    mainfestFile,
+  console.log(
+    collectionsMap,
+  );
+}
+
+export async function compileCollection(
+  { fsContext, filePath, config }: {
+    fsContext: FsContext;
+    filePath: string;
+    config: CollectionsConfig;
+  },
+): Promise<{
+  collectionName: string;
+  collectionEntryName: string;
+  content: string;
+  toc: CollectionToc;
+  metadata: DefaultCollectionMetadata;
+}> {
+  const content = await Deno.readTextFile(filePath);
+
+  let bodyToCompile = content;
+  let metadata: DefaultCollectionMetadata = {};
+
+  try {
+    const { attrs, body } = extractYaml(content);
+    bodyToCompile = body;
+    metadata = attrs as DefaultCollectionMetadata;
+  } catch {
+    console.warn(
+      colors.yellow(
+        `Metadata could not be extracted in ${filePath}. Empty object will be used instead`,
+      ),
+    );
+  }
+
+  const basePath = filePath.slice(0, -basename(filePath).length);
+
+  let collectionToc: CollectionToc = [];
+
+  const result = await compile(bodyToCompile, {
+    outputFormat: 'program',
+    jsxImportSource: 'preact',
+    baseUrl: toFileUrl(basePath),
+    rehypePlugins: [
+      ImageSizeRehypePlugin({
+        pathResolver: (imageSrc) =>
+          join(fsContext.resolvePath('public'), imageSrc),
+      }),
+      CodeBlockMetadataRehypePlugin,
+      [
+        rehypeHighlight,
+        {
+          languages: all,
+        },
+      ],
+      [rehypeHighlightCodeLines as any],
+      ListPrefixerRehypePlugin,
+      TocRehypePlugin({
+        onDone(toc) {
+          collectionToc = toc;
+        },
+      }),
+    ],
+  });
+
+  const collectionsDir = fsContext.resolvePath('collections');
+  const collectionRelativePath = relative(collectionsDir, filePath);
+
+  const ext = extname(filePath);
+  let collectionEntryName = basename(filePath);
+  let collectionName = collectionRelativePath.slice(
+    0,
+    -collectionEntryName.length,
   );
 
-  for (
-    const { hash, module, metadata, collectionEntryName, collectionName, toc }
-      of Object.values(
-        collectionManifest,
-      )
-  ) {
-    if (!collectionsMap.has(collectionName)) {
-      collectionsMap.set(collectionName, {});
-    }
-
-    collectionsMap.get(collectionName)![collectionEntryName] = {
-      Content: withMetadata({
-        hash: hash,
-        Content: module.default,
-        metadata,
-        collectionName,
-        collectionEntryName,
-        toc,
-      }),
-      metadata,
-      toc,
-    };
+  if (collectionName.endsWith(SEPARATOR)) {
+    collectionName = collectionName.slice(0, -SEPARATOR.length);
   }
+
+  collectionEntryName = collectionEntryName.slice(0, -ext.length);
+
+  let schemaPath: string = '';
+  for (const [pathMatch, collectionConfig] of Object.entries(config)) {
+    if (collectionName.match(pathMatch)) {
+      schemaPath = pathMatch;
+      try {
+        metadata = (await v.parseAsync(
+          collectionConfig.schema,
+          metadata,
+        )) as DefaultCollectionMetadata;
+      } catch (error) {
+        console.error(
+          colors.red(
+            `${filePath} metadata does not match with the schema\n`,
+          ),
+          error,
+        );
+      }
+      break;
+    }
+  }
+
+  return {
+    collectionName,
+    collectionEntryName,
+    content: typeof result.value === 'string'
+      ? result.value
+      : textDecoder.decode(result.value),
+    toc: collectionToc,
+    metadata,
+  };
 }
