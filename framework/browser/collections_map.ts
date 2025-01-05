@@ -2,8 +2,6 @@ import { Fragment, h } from 'preact';
 import type {
   AnyString,
   Collection,
-  CollectionIndexModule,
-  CollectionModule,
   CollectionName,
   CollectionsAllProvider,
   CollectionsMap,
@@ -11,15 +9,6 @@ import type {
   GetCollectionEntryResult,
 } from '../types.ts';
 import { mdxComponents } from '../shared/collections/components/index.ts';
-
-declare global {
-  interface Window {
-    __collections__: Record<string, {
-      index: CollectionIndexModule;
-      entries: Record<string, CollectionModule>;
-    }>;
-  }
-}
 
 export class BrowserCollection<C extends CollectionName>
   implements Collection<C> {
