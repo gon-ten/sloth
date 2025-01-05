@@ -689,9 +689,6 @@ class BuildContext implements Disposable {
         `bootstrap({ Page: ${symbolName}, hash: "${routeHash}", layouts: ${layoutsVarName}, hydrationData });`,
       ],
     });
-    // sourceFile.addStatements(
-    // `bootstrap({ Page: ${symbolName}, hash: "${routeHash}", layouts: ${layoutsVarName} });`,
-    // );
   }
 
   #sanitizeFile(sourceFile: SourceFile, fsPath: string) {
