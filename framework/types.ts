@@ -189,7 +189,7 @@ export type CollectionToc = Array<{
 
 export type CollectionsAllProviderChildrenProps<M = DefaultCollectionMetadata> =
   {
-    name: string;
+    slug: string;
     metadata: M;
   };
 
@@ -296,9 +296,12 @@ export type MetaFile = {
   };
   collections: {
     [collectionName: string]: {
-      [collectionEntryName: string]: {
-        hash: string;
-        moduleSpecifier: string;
+      index: string;
+      entries: {
+        [collectionEntryName: string]: {
+          hash: string;
+          moduleSpecifier: string;
+        };
       };
     };
   };
@@ -338,3 +341,12 @@ export type HydrationData = [
   sharedProps: JSONObject,
   dataMap: JSONObject,
 ];
+
+export type CollectionIndexModule = {
+  hash: string;
+  entries: {
+    [slug: string]: {
+      metadata: DefaultCollectionMetadata;
+    };
+  };
+};

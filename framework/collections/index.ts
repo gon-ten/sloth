@@ -14,6 +14,7 @@ import { collectionsMap } from '../server/collections_map.ts';
 import { withClientCode } from '../shared/collections/components/hoc/with_client_code.ts';
 import type { FsContext } from '../lib/fs_context.ts';
 import type {
+  CollectionIndexModule,
   CollectionModule,
   CollectionsConfig,
   CollectionsConfigEntry,
@@ -29,28 +30,6 @@ import ListPrefixerRehypePlugin from './rehype-plugins/list-prefixer.ts';
 import TocRehypePlugin from './rehype-plugins/toc.ts';
 import { basename } from '@std/path/basename';
 import { extname } from '@std/path/extname';
-
-type CollectionManifest = {
-  [mdxFileRelativePath: string]: {
-    collectionName: string;
-    collectionEntryName: string;
-    hash: string;
-    module: CollectionModule;
-    metadata: DefaultCollectionMetadata;
-    toc: CollectionToc;
-  };
-};
-
-type ManifestInitializer = {
-  [mdxFileRelativePath: string]: {
-    hash: string;
-    collectionName: string;
-    collectionEntryName: string;
-    cookedPath: string;
-    metadata: DefaultCollectionMetadata;
-    toc: CollectionToc;
-  };
-};
 
 const textDecoder = new TextDecoder();
 
@@ -70,9 +49,13 @@ export async function loadCollections(
   { metaFile }: { metaFile: MetaFile },
 ) {
   for (
-    const [collectionName, collectionEntries] of Object.entries(
-      metaFile.collections,
-    )
+    const [
+      collectionName,
+      { entries: collectionEntries, index: collectionIndex },
+    ] of Object
+      .entries(
+        metaFile.collections,
+      )
   ) {
     for (
       const [collectionEntryName, { hash, moduleSpecifier }] of Object.entries(
@@ -83,11 +66,18 @@ export async function loadCollections(
         CollectionModule
       >(moduleSpecifier);
 
+      const collectionIndexMod = await loadModule<CollectionIndexModule>(
+        collectionIndex,
+      );
+
       if (!collectionsMap.has(collectionName)) {
-        collectionsMap.set(collectionName, {});
+        collectionsMap.set(collectionName, {
+          entries: {},
+          index: collectionIndexMod,
+        });
       }
 
-      collectionsMap.get(collectionName)![collectionEntryName] = {
+      collectionsMap.get(collectionName)!.entries[collectionEntryName] = {
         Content: withClientCode({
           hash,
           Content,

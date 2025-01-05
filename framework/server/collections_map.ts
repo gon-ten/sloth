@@ -1,13 +1,10 @@
 import { Fragment, h } from 'preact';
 import { CollectionNotFoundError } from '../collections/errors.ts';
 import { Script } from '../shared/scripts.ts';
-import {
-  DATA_COLLECTION_NAME_ATTRIBUTE,
-  HYDRATION_SCRIPT_TYPE,
-} from '../shared/constants.ts';
 import type {
   AnyString,
   Collection,
+  CollectionIndexModule,
   CollectionMapEntry,
   CollectionName,
   CollectionsAllProvider,
@@ -17,12 +14,17 @@ import type {
 } from '../types.ts';
 import { getCollection as getCollectionClient } from '../browser/collections_map.ts';
 
-export const collectionsMap = new Map<
-  string,
-  Record<
+type FlatCollection = {
+  index: CollectionIndexModule;
+  entries: Record<
     string,
     CollectionMapEntry
-  >
+  >;
+};
+
+export const collectionsMap = new Map<
+  string,
+  FlatCollection
 >();
 
 const cache = new Map<string, unknown>();
@@ -35,7 +37,7 @@ export class ServerCollection<C extends CollectionName>
   }
 
   #getCollection() {
-    const collection = collectionsMap.get(this.#collectionName) ?? {};
+    const collection = collectionsMap.get(this.#collectionName);
     if (!collection) {
       throw new CollectionNotFoundError(this.#collectionName);
     }
@@ -45,8 +47,10 @@ export class ServerCollection<C extends CollectionName>
   all(): GetAllCollectionEntriesResult<C> {
     const collection = this.#getCollection();
 
-    const entries = Object.entries(collection).map(([name, { metadata }]) => ({
-      name,
+    const entries = Object.entries(collection.entries).map((
+      [slug, { metadata }],
+    ) => ({
+      slug,
       metadata,
     }));
 
@@ -54,18 +58,21 @@ export class ServerCollection<C extends CollectionName>
       children,
     }) =>
       h(Fragment, {}, [
-        ...entries.map(({ name, metadata }) =>
+        ...entries.map(({ slug, metadata }) =>
           children({
-            name,
+            slug,
             metadata: metadata as CollectionsMap[C]['metadata'],
           })
         ),
         h(Script, {
-          type: HYDRATION_SCRIPT_TYPE,
+          type: 'module',
           dangerouslySetInnerHTML: {
-            __html: JSON.stringify(entries),
+            __html: `
+            import * as _ from "/static/${collection.index.hash}.js";
+            window.__collections__ = window.__collections__ || {};
+            window.__collections__["${this.#collectionName}"] = window.__collections__["${this.#collectionName}"] || { entries: {}, index: _ };
+          `,
           },
-          [DATA_COLLECTION_NAME_ATTRIBUTE]: this.#collectionName,
         }),
       ]);
 
@@ -79,19 +86,19 @@ export class ServerCollection<C extends CollectionName>
   ): GetCollectionEntryResult<C> {
     const collection = this.#getCollection();
 
-    if (!Reflect.has(collection, entryName)) {
+    if (!Reflect.has(collection.index.entries, entryName)) {
       throw new CollectionNotFoundError(this.#collectionName);
     }
 
-    return collection[entryName] as GetCollectionEntryResult<C>;
+    return collection.entries[entryName] as GetCollectionEntryResult<C>;
   }
 
   has(entryName: keyof CollectionsMap[C] | AnyString): boolean {
-    return Reflect.has(this.#getCollection(), entryName);
+    return Reflect.has(this.#getCollection().index.entries, entryName);
   }
 
   keys(): string[] {
-    return Object.keys(this.#getCollection());
+    return Object.keys(this.#getCollection().index.entries);
   }
 }
 

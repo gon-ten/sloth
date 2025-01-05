@@ -357,9 +357,44 @@ class BuildContext implements Disposable {
         compileResult,
       )
     ) {
+      const collectionIndexRelativePath =
+        `./collections/${collectionName}/index.js`;
+
+      const collectionIndexHash = await md5(collectionIndexRelativePath);
+
+      const collectionIndexVirtalPath = this.#getVirtualPath(
+        collectionIndexRelativePath.slice(0, -'index.js'.length) +
+          collectionIndexHash + '.js',
+      );
+
+      const collectionIndexSourceFile = this.#project.createSourceFile(
+        collectionIndexVirtalPath,
+      );
+
+      collectionIndexSourceFile.addVariableStatement({
+        declarationKind: VariableDeclarationKind.Const,
+        isExported: true,
+        declarations: [
+          {
+            name: 'hash',
+            initializer: JSON.stringify(collectionIndexHash),
+          },
+        ],
+      });
+
+      meta[collectionName] ??= {
+        entries: {},
+        index: this.#fsContext.resolveFromOutDir(
+          'project',
+          this.#resolveOutFilePath(collectionIndexVirtalPath),
+        ),
+      };
+
+      let entryIndex = 0;
+      const collectionEntries = Object.entries(entries);
       for (
         const [collectionEntryName, { content, metadata, relativePath, toc }]
-          of Object.entries(entries)
+          of collectionEntries
       ) {
         const hash = await md5(relativePath);
 
@@ -437,8 +472,14 @@ class BuildContext implements Disposable {
           ],
         );
 
-        meta[collectionName] ??= {};
-        meta[collectionName][collectionEntryName] = {
+        collectionIndexSourceFile.addImportDeclaration({
+          moduleSpecifier: `./${
+            this.#resolveFileExtension(basename(virtualPath))
+          }`,
+          namedImports: [`metadata as M${entryIndex++}`],
+        });
+
+        meta[collectionName].entries[collectionEntryName] = {
           hash,
           moduleSpecifier: this.#fsContext.resolveFromOutDir(
             'project',
@@ -446,6 +487,28 @@ class BuildContext implements Disposable {
           ),
         };
       }
+
+      collectionIndexSourceFile.addVariableStatement({
+        declarationKind: VariableDeclarationKind.Const,
+        isExported: true,
+        declarations: [
+          {
+            name: 'entries',
+            initializer: (writer) => {
+              writer.writeLine('{');
+              for (
+                const [index, [collectionEntryName]] of collectionEntries
+                  .entries()
+              ) {
+                writer.writeLine(`${JSON.stringify(collectionEntryName)}: {`);
+                writer.writeLine(`metadata: M${index}`);
+                writer.writeLine('},');
+              }
+              writer.writeLine('}');
+            },
+          },
+        ],
+      });
     }
 
     collectionsIndexSourceFile.addImportDeclarations([
@@ -741,7 +804,9 @@ class BuildContext implements Disposable {
 
   async #createBundleContext(cwd: string) {
     const entryPoints = await Array.fromAsync(
-      walk(this.#projectOutputDir, { match: [/\.js(x?)$/] }),
+      walk(this.#projectOutputDir, {
+        match: [/[a-z0-9]{32}.js(x?)$/],
+      }),
     );
 
     if (!this.#bundleContext) {

@@ -58,7 +58,7 @@ export default function BlogIndex({ params }: PageProps<void, Params>) {
       <LayoutRow className='mt-8'>
         <div className='lg:border-l lg:border-default'>
           <Provider>
-            {({ name, metadata }) => (
+            {({ slug, metadata }) => (
               <section className='relative text-default lg:pl-40'>
                 <section className='hidden text-sm lg:inline-flex lg:absolute lg:left-4 lg:top-4'>
                   <time
@@ -69,8 +69,8 @@ export default function BlogIndex({ params }: PageProps<void, Params>) {
                   </time>
                 </section>
                 <a
-                  key={name}
-                  href={`/${params.lang}/${name}`}
+                  key={slug}
+                  href={`/${params.lang}/${slug}`}
                   className='block'
                 >
                   <section className='group flex flex-row -mx-4 lg:mx-0 p-4 rounded-xl hover:bg-zinc-100 hover:dark:bg-zinc-700/20 transition-colors'>

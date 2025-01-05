@@ -1,15 +1,11 @@
 import { Fragment, h } from 'preact';
-import {
-  DATA_COLLECTION_NAME_ATTRIBUTE,
-  HYDRATION_SCRIPT_TYPE,
-} from '../shared/constants.ts';
 import type {
   AnyString,
   Collection,
+  CollectionIndexModule,
   CollectionModule,
   CollectionName,
   CollectionsAllProvider,
-  CollectionsAllProviderChildrenProps,
   CollectionsMap,
   GetAllCollectionEntriesResult,
   GetCollectionEntryResult,
@@ -19,6 +15,7 @@ import { mdxComponents } from '../shared/collections/components/index.ts';
 declare global {
   interface Window {
     __collections__: Record<string, {
+      index: CollectionIndexModule;
       entries: Record<string, CollectionModule>;
     }>;
   }
@@ -32,24 +29,19 @@ export class BrowserCollection<C extends CollectionName>
     this.#collectionName = collectionName;
   }
 
+  #getCollection() {
+    return self.__collections__[this.#collectionName] ?? {};
+  }
+
   all(): GetAllCollectionEntriesResult<C> {
-    const dataContainer = document.querySelector(
-      `script[type="${HYDRATION_SCRIPT_TYPE}"][${DATA_COLLECTION_NAME_ATTRIBUTE}="${this.#collectionName}"]`,
-    );
-
-    let collection: CollectionsAllProviderChildrenProps[] = [];
-
-    if (dataContainer) {
-      collection = dataContainer.textContent
-        ? JSON.parse(dataContainer.textContent)
-        : collection;
-    }
-
+    const collection = this.#getCollection();
     const Provider: CollectionsAllProvider = ({ children }) =>
       h(
         Fragment,
         {},
-        collection.map(({ name, metadata }) => children({ name, metadata })),
+        Object.entries(collection.index.entries).map(([slug, { metadata }]) =>
+          children({ slug, metadata })
+        ),
       );
 
     return {
@@ -71,35 +63,13 @@ export class BrowserCollection<C extends CollectionName>
   }
 
   has(entryName: keyof CollectionsMap[C] | AnyString): boolean {
-    const dataContainer = document.querySelector(
-      `script[type="${HYDRATION_SCRIPT_TYPE}"][${DATA_COLLECTION_NAME_ATTRIBUTE}="${entryName}"]`,
-    );
-
-    let collection: CollectionsAllProviderChildrenProps[] = [];
-
-    if (dataContainer) {
-      collection = dataContainer.textContent
-        ? JSON.parse(dataContainer.textContent)
-        : collection;
-    }
-
-    return collection.some(({ name }) => name === entryName);
+    const collection = this.#getCollection();
+    return Reflect.has(collection.index.entries, entryName);
   }
 
   keys(): string[] {
-    const dataContainer = document.querySelector(
-      `script[type="${HYDRATION_SCRIPT_TYPE}"][${DATA_COLLECTION_NAME_ATTRIBUTE}="${this.#collectionName}"]`,
-    );
-
-    let collection: CollectionsAllProviderChildrenProps[] = [];
-
-    if (dataContainer) {
-      collection = dataContainer.textContent
-        ? JSON.parse(dataContainer.textContent)
-        : collection;
-    }
-
-    return collection.map(({ name }) => name);
+    const collection = this.#getCollection();
+    return Object.keys(collection.index.entries);
   }
 }
 
