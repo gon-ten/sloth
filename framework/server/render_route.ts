@@ -234,9 +234,8 @@ export async function renderRoute({
           type: 'module',
           dangerouslySetInnerHTML: {
             __html: `
-              const hydrationData = ${JSON.stringify(hydrationData)};
-              import r from "/static/${routeHash}.js";
-              r(hydrationData);
+              import _ from "/static/${routeHash}.js";
+              _(${JSON.stringify(hydrationData)});
             `,
           },
         },
