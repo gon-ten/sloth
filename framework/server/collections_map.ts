@@ -13,6 +13,7 @@ import type {
   GetCollectionEntryResult,
 } from '../types.ts';
 import { getCollection as getCollectionClient } from '../browser/collections_map.ts';
+import { Link } from '../shared/links.ts';
 
 type FlatCollection = {
   index: CollectionIndexModule;
@@ -64,6 +65,12 @@ export class ServerCollection<C extends CollectionName>
             metadata: metadata as CollectionsMap[C]['metadata'],
           })
         ),
+        h(Link, {
+          rel: 'preload',
+          as: 'script',
+          href: `/static/${collection.index.hash}.js`,
+          crossOrigin: 'anonymous',
+        }),
         h(Script, {
           type: 'module',
           dangerouslySetInnerHTML: {
