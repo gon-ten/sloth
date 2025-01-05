@@ -6,6 +6,7 @@ import {
   HYDRATION_SCRIPT_TYPE,
 } from '../shared/constants.ts';
 import type {
+  AnyString,
   Collection,
   CollectionMapEntry,
   CollectionName,
@@ -72,8 +73,8 @@ export class ServerCollection<C extends CollectionName>
       Provider,
     };
   }
-  // deno-lint-ignore ban-types
-  get<T extends CollectionsMap[C]['entries'] | (string & {})>(
+
+  get<T extends CollectionsMap[C]['entries'] | AnyString>(
     entryName: T,
   ): GetCollectionEntryResult<C> {
     const collection = this.#getCollection();
@@ -85,8 +86,7 @@ export class ServerCollection<C extends CollectionName>
     return collection[entryName] as GetCollectionEntryResult<C>;
   }
 
-  // deno-lint-ignore ban-types
-  has(entryName: keyof CollectionsMap[C] | (string & {})): boolean {
+  has(entryName: keyof CollectionsMap[C] | AnyString): boolean {
     return Reflect.has(this.#getCollection(), entryName);
   }
 

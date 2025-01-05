@@ -11,7 +11,7 @@ import { all } from 'lowlight';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeHighlightCodeLines from 'rehype-highlight-code-lines';
 import { collectionsMap } from '../server/collections_map.ts';
-import { withMetadata } from '../shared/collections/components/hoc/with_metadata.ts';
+import { withClientCode } from '../shared/collections/components/hoc/with_client_code.ts';
 import type { FsContext } from '../lib/fs_context.ts';
 import type {
   CollectionModule,
@@ -29,10 +29,6 @@ import ListPrefixerRehypePlugin from './rehype-plugins/list-prefixer.ts';
 import TocRehypePlugin from './rehype-plugins/toc.ts';
 import { basename } from '@std/path/basename';
 import { extname } from '@std/path/extname';
-
-type CollectionManifestModule = {
-  collectionManifest: CollectionManifest;
-};
 
 type CollectionManifest = {
   [mdxFileRelativePath: string]: {
@@ -92,13 +88,12 @@ export async function loadCollections(
       }
 
       collectionsMap.get(collectionName)![collectionEntryName] = {
-        Content: withMetadata({
+        Content: withClientCode({
           hash,
           Content,
           metadata,
           collectionName,
           collectionEntryName,
-          toc,
         }),
         metadata,
         toc,

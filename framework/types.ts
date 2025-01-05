@@ -98,9 +98,9 @@ export type PageProps<
 };
 
 export type LayoutLoader<
-  Data = unknown,
+  Data = JSONValue,
   Params extends UnknownParams = Record<string, string>,
-  State = unknown,
+  State = JSONValue,
 > = (params: {
   req: Request;
   params: Params;
@@ -108,9 +108,9 @@ export type LayoutLoader<
 }) => Response | Promise<Response>;
 
 export type Loader<
-  Data = unknown,
+  Data = JSONValue,
   Params extends UnknownParams = Record<string, string>,
-  State = unknown,
+  State = JSONValue,
 > = (params: {
   req: Request;
   params: Params;
@@ -152,9 +152,9 @@ export type LayoutModule = {
   default: Layout;
 };
 
-export type Middleware<State = unknown> = (params: {
+export type Middleware<State = JSONValue> = (params: {
   req: Request;
-  ctx: RenderContext<unknown, State>;
+  ctx: RenderContext<JSONValue, State>;
 }) => Promise<Response> | Response;
 
 export type MiddlewareModule = {
@@ -179,7 +179,7 @@ export type MDXComponentProps = {
   components?: Record<string, ComponentType<any>>;
 };
 
-export type DefaultCollectionMetadata = Record<string, unknown>;
+export type DefaultCollectionMetadata = JSONObject;
 
 export type CollectionToc = Array<{
   content: string;
@@ -240,7 +240,7 @@ export type CollectionName = string;
 
 export type DefaultCollectionEntry = {
   entries: string;
-  metadata: JSONObject;
+  metadata: DefaultCollectionMetadata;
   Content: ComponentType<unknown>;
   toc: CollectionToc;
 };
@@ -308,7 +308,13 @@ export type MetaFileModule = {
   default: MetaFile;
 };
 
-type JSONValue = string | number | boolean | null | JSONObject | JSONValue[];
+export type JSONValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JSONObject
+  | JSONValue[];
 
 export type JSONObject = {
   [key: string | number]: JSONValue;
@@ -327,3 +333,8 @@ export interface UnknownCollection {
   };
   keys(): ReadonlyArray<string>;
 }
+
+export type HydrationData = [
+  sharedProps: JSONObject,
+  dataMap: JSONObject,
+];

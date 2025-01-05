@@ -279,7 +279,7 @@ class BuildContext implements Disposable {
         'AnyString',
         'CollectionToc',
         'CollectionsAllProvider',
-        'JSONObject',
+        'DefaultCollectionMetadata',
         'CollectionsMap as DefaultCollectionsMap',
         'UnknownCollection',
       ],
@@ -365,7 +365,7 @@ class BuildContext implements Disposable {
 
         sourceFile.addImportDeclaration({
           moduleSpecifier: '@sloth/core/content',
-          namedImports: ['CollectionToc', 'JSONObject'],
+          namedImports: ['CollectionToc', 'DefaultCollectionMetadata'],
         });
 
         sourceFile.addImportDeclaration({
@@ -386,7 +386,7 @@ class BuildContext implements Disposable {
           name: 'Metadata',
           type: configPath
             ? `v.InferOutput<typeof config["${configPath}"]["schema"]>`
-            : 'JSONObject',
+            : 'DefaultCollectionMetadata',
         });
 
         sourceFile.addImportDeclaration({
@@ -506,7 +506,7 @@ class BuildContext implements Disposable {
               writer.write(
                 configPath
                   ? `v.InferOutput<typeof config['${configPath}']['schema']>;`
-                  : 'JSONObject;',
+                  : 'DefaultCollectionMetadata;',
               );
               writer.writeLine('Content: ComponentType<unknown>;');
               writer.writeLine('toc: CollectionToc;');
@@ -629,10 +629,16 @@ class BuildContext implements Disposable {
     },
   ) {
     const bootstrapMod = import.meta.resolve('./browser/bootstrap.ts');
-    sourceFile.addImportDeclaration({
-      moduleSpecifier: bootstrapMod,
-      namedImports: ['bootstrap'],
-    });
+    sourceFile.addImportDeclarations([
+      {
+        moduleSpecifier: bootstrapMod,
+        namedImports: ['bootstrap'],
+      },
+      {
+        moduleSpecifier: '@sloth/core',
+        namedImports: ['HydrationData'],
+      },
+    ]);
     const layoutImports: string[] = [];
     for (
       const [index, { moduleRelativeSpecifier, hash: layoutHash }] of layouts
@@ -670,9 +676,22 @@ class BuildContext implements Disposable {
     }
     const symbolName = name.split('".').at(-1);
     sourceFile.removeDefaultExport();
-    sourceFile.addStatements(
-      `bootstrap({ Page: ${symbolName}, hash: "${routeHash}", layouts: ${layoutsVarName} });`,
-    );
+    sourceFile.addFunction({
+      name: '',
+      isDefaultExport: true,
+      parameters: [
+        {
+          name: 'hydrationData',
+          type: 'HydrationData',
+        },
+      ],
+      statements: [
+        `bootstrap({ Page: ${symbolName}, hash: "${routeHash}", layouts: ${layoutsVarName}, hydrationData });`,
+      ],
+    });
+    // sourceFile.addStatements(
+    // `bootstrap({ Page: ${symbolName}, hash: "${routeHash}", layouts: ${layoutsVarName} });`,
+    // );
   }
 
   #sanitizeFile(sourceFile: SourceFile, fsPath: string) {

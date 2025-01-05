@@ -6,6 +6,7 @@ export type {
   ComposeRouteTypes,
   DefaultCollectionMetadata,
   GenerateMetadataFunction,
+  HydrationData,
   InferLoaderReturnType,
   InferValidateOptions,
   JSONObject,

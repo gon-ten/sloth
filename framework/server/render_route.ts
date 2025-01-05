@@ -3,13 +3,12 @@ import * as v from '@valibot/valibot';
 import * as colors from '@std/fmt/colors';
 import { Fragment, h, type VNode } from 'preact';
 import { renderToString } from 'preact-render-to-string';
-import {
-  DATA_ROLE_ATTRIBUTE,
-  HYDRATION_SCRIPT_TYPE,
-} from '../shared/constants.ts';
 import '../shared/option_hooks.ts';
 import type {
+  HydrationData,
   Interceptors,
+  JSONObject,
+  JSONValue,
   LayoutModule,
   MiddlewareModule,
   PageConfig,
@@ -72,8 +71,8 @@ export async function renderRoute({
   // Merge given config with default config
   const fullPageConfig: PageConfig = deepMerge(defaultConfig, pageConfig);
 
-  const ctx: RenderContext<unknown, unknown> = {
-    state: undefined,
+  const ctx: RenderContext<JSONValue, JSONValue> = {
+    state: null,
     renderNotFound: notFound,
     next() {
       return Promise.resolve(internalServerError());
@@ -120,7 +119,7 @@ export async function renderRoute({
 
   // Data map to store layout and page data props. Used during ssr process and
   // it will be sent to the browser to be used during hydration process
-  const dataMap: Record<string, unknown> = {};
+  const dataMap: JSONObject = {};
 
   const composeInterceptors = async () => {
     const interceptors = routeInterceptors.concat();
@@ -227,16 +226,20 @@ export async function renderRoute({
       );
     }
 
+    const hydrationData: HydrationData = [sharedProps, dataMap];
+
     const scriptsContextValue: ScriptProps[] = !pageConfig.ssrOnly
       ? [
         {
-          type: HYDRATION_SCRIPT_TYPE,
+          type: 'module',
           dangerouslySetInnerHTML: {
-            __html: JSON.stringify([sharedProps, dataMap]),
+            __html: `
+              const hydrationData = ${JSON.stringify(hydrationData)};
+              import r from "/static/${routeHash}.js";
+              r(hydrationData);
+            `,
           },
-          [DATA_ROLE_ATTRIBUTE]: 'main',
         },
-        { type: 'module', src: `/static/${routeHash}.js`, defer: true },
       ]
       : [];
 
@@ -308,7 +311,7 @@ export async function renderRoute({
     if (csp) {
       res.headers.set(
         'Content-Security-Policy',
-        `script-src 'self' 'nonce-${nonce}' 'unsafe-inline'; base-uri 'self'; object-src 'none';`,
+        `script-src 'self' 'nonce-${nonce}'; base-uri 'self'; object-src 'none';`,
       );
     }
 
@@ -327,7 +330,7 @@ export async function renderRoute({
     // It's supposed to be undefined as there is no loader
     handlers.push(() => {
       ctx.render = renderRoute;
-      return ctx.render(undefined);
+      return ctx.render(null);
     });
   }
 

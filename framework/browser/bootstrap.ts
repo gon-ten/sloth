@@ -1,32 +1,24 @@
 // import '../shared/option_hooks.ts';
 import { type ComponentType, Fragment, h, hydrate, VNode } from 'preact';
-import {
-  DATA_ROLE_ATTRIBUTE,
-  HYDRATION_SCRIPT_TYPE,
-} from '../shared/constants.ts';
-import type { LayoutProps } from '../types.ts';
+import type { HydrationData, LayoutProps, PageProps } from '../types.ts';
 
 export function bootstrap({
   Page,
   hash,
   layouts,
+  hydrationData,
 }: {
-  // deno-lint-ignore no-explicit-any
-  Page: ComponentType<any>;
+  Page: ComponentType<PageProps>;
   hash: string;
   layouts: Array<{
     Layout: ComponentType<LayoutProps>;
     hash: string;
   }>;
+  hydrationData: HydrationData;
 }) {
-  const storeEl = document.querySelector(
-    `script[type="${HYDRATION_SCRIPT_TYPE}"][${DATA_ROLE_ATTRIBUTE}="main"]`,
-  );
+  const [common, { [hash]: data, ...layoutsData }] = hydrationData;
 
-  const store = storeEl?.textContent ? JSON.parse(storeEl.textContent) : {};
-  const [common, { [hash]: data, ...layoutsData }] = store;
-
-  const page = h(Page, { ...common, data });
+  const page = h(Page, { ...common, data } as PageProps);
   const layout = layouts
     // deno-lint-ignore no-explicit-any
     .reduceRight<VNode<any>>(
@@ -35,7 +27,7 @@ export function bootstrap({
           ...common,
           data: layoutsData[hash],
           Component: () => h(Fragment, null, [acc]),
-        }),
+        } as unknown as LayoutProps),
       page,
     );
 

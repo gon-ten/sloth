@@ -1,10 +1,5 @@
 import { Fragment, h } from 'preact';
 import type { ComponentType } from 'preact';
-import {
-  DATA_COLLECTION_ENTRY_NAME_ATTRIBUTE,
-  DATA_COLLECTION_NAME_ATTRIBUTE,
-  HYDRATION_SCRIPT_TYPE,
-} from '../../../constants.ts';
 import type {
   CollectionMapEntry,
   MDXComponentProps,
@@ -13,23 +8,19 @@ import { mdxComponents } from '../index.ts';
 import { Script } from '../../../scripts.ts';
 import { Link } from '../../../links.ts';
 
-export const withMetadata = ({
+export const withClientCode = ({
   hash,
   metadata,
   Content,
   collectionName,
   collectionEntryName,
-  toc,
 }: {
   hash: string;
   collectionName: string;
   collectionEntryName: string;
   Content: ComponentType<MDXComponentProps>;
   metadata: CollectionMapEntry['metadata'];
-  toc: CollectionMapEntry['toc'];
 }) => {
-  const metadataStr = JSON.stringify({ metadata, toc });
-
   return () => {
     return h(Fragment, {}, [
       h(Content, { metadata, components: mdxComponents }),
@@ -43,20 +34,12 @@ export const withMetadata = ({
         type: 'module',
         dangerouslySetInnerHTML: {
           __html: `
-            import Content from "/static/${hash}.js";
+            import * as C from "/static/${hash}.js";
             window.__collections__ = window.__collections__ || {};
-            window.__collections__["${collectionEntryName}"] = Content;
+            window.__collections__["${collectionName}"] = window.__collections__["${collectionName}"] || { entries: {} };
+            window.__collections__["${collectionName}"].entries["${collectionEntryName}"] = C;
           `,
         },
-      }),
-      metadata &&
-      h(Script, {
-        type: HYDRATION_SCRIPT_TYPE,
-        dangerouslySetInnerHTML: {
-          __html: metadataStr,
-        },
-        [DATA_COLLECTION_NAME_ATTRIBUTE]: collectionName,
-        [DATA_COLLECTION_ENTRY_NAME_ATTRIBUTE]: collectionEntryName,
       }),
     ]);
   };
