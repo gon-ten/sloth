@@ -5,6 +5,7 @@ import {
   CollectionsConfig,
   Interceptors,
   MetaFile,
+  Mode,
 } from './types.ts';
 import { relative } from '@std/path/relative';
 import { exists } from '@std/fs/exists';
@@ -50,7 +51,11 @@ export default async function (config: AppConfigDev) {
   await Deno.remove(outDir, { recursive: true }).catch(() => null);
   await Deno.mkdir(outDir, { recursive: true }).catch(() => null);
 
-  using buildCtx = new BuildContext(fsContext, config);
+  using buildCtx = new BuildContext({
+    fsContext,
+    config,
+    mode: isBuild ? 'production' : 'development',
+  });
 
   await buildCtx.initialize();
 
@@ -95,10 +100,18 @@ class BuildContext implements Disposable {
 
   #bundleContext: esbuild.BuildContext | undefined;
 
-  constructor(fsContext: FsContext, config: AppConfigDev) {
+  #mode: Mode;
+
+  constructor({ fsContext, config, mode }: {
+    fsContext: FsContext;
+    config: AppConfigDev;
+    mode: Mode;
+  }) {
     this.#fsContext = fsContext;
 
     this.#config = config;
+
+    this.#mode = mode;
 
     this.#projectOutputDir = this.#fsContext.resolveFromOutDir('project');
   }
@@ -755,9 +768,9 @@ class BuildContext implements Disposable {
           splitting: true,
           bundle: true,
           treeShaking: true,
-          minify: false,
+          minify: this.#mode === 'production',
 
-          sourcemap: true,
+          sourcemap: this.#mode === 'development',
           metafile: true,
 
           outdir: '.',
