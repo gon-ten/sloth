@@ -262,7 +262,7 @@ export interface Collection<C extends CollectionName> {
   get(
     entryName: string,
   ): GetCollectionEntryResult<C>;
-  all(collectionName: C): GetAllCollectionEntriesResult<C>;
+  all(): GetAllCollectionEntriesResult<C>;
   has(entryName: string): boolean;
   keys(): string[];
 }
