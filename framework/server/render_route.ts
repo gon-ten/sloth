@@ -196,7 +196,7 @@ export async function renderRoute({
 
     if (metadata) {
       const rawMetadata = typeof metadata === 'function'
-        ? await metadata({ params, req })
+        ? await metadata({ params, req, ctx: { state: ctx.state } })
         : metadata;
 
       resultMetadata = metadataToVnode(rawMetadata);

@@ -63,7 +63,10 @@ export type HandlerContext<Data extends unknown = unknown> = {
 
 export type GenerateMetadataFunction<
   Params extends Record<string, string> = Record<string, string>,
-> = (args: { req: Request; params: Params }) => Metadata | Promise<Metadata>;
+  State extends JSONValue = JSONValue,
+> = (
+  args: { req: Request; params: Params; ctx: { state: Readonly<State> } },
+) => Metadata | Promise<Metadata>;
 
 export type ValidMetadata = Metadata | GenerateMetadataFunction;
 
