@@ -137,7 +137,7 @@ export async function renderRoute({
       if (middleware) {
         const { moduleSpecifier } = middleware;
         const { handler } = await loadModule<MiddlewareModule>(moduleSpecifier);
-        handlers.push(() => handler({ req, ctx }));
+        handlers.push(() => handler({ req, ctx, params }));
       }
 
       if (layout) {

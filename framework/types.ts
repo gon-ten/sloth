@@ -155,10 +155,13 @@ export type LayoutModule = {
   default: Layout;
 };
 
-export type Middleware<State = JSONValue> = (params: {
-  req: Request;
-  ctx: RenderContext<JSONValue, State>;
-}) => Promise<Response> | Response;
+export type Middleware<State = JSONValue, Params = Record<string, string>> = (
+  params: {
+    req: Request;
+    ctx: RenderContext<JSONValue, State>;
+    params: Params;
+  },
+) => Promise<Response> | Response;
 
 export type MiddlewareModule = {
   handler: Middleware;
