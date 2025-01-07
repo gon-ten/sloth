@@ -38,8 +38,7 @@ export type AppConfig = {
 };
 
 export type RootProps<S extends unknown> = {
-  Metadata: ComponentType;
-  Links: ComponentType;
+  Head: ComponentType;
   Component: ComponentType;
   state: RenderContext<never, S>['state'];
 };

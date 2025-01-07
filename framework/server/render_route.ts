@@ -34,6 +34,7 @@ import { createHash } from '../utils/crypto.ts';
 import { Links, LINKS_CONTEXT, type LinksProps } from '../shared/links.ts';
 import { metadataToVnode } from './metadata.ts';
 import { executionContext } from './index.ts';
+import { HEAD_CONTEXT } from '../shared/head.ts';
 
 const defaultConfig: Required<Omit<PageConfig, 'allowedMethods'>> = {
   ssrOnly: false,
@@ -260,46 +261,51 @@ export async function renderRoute({
       });
     }
 
-    let linksHasBeenRendered = false;
+    const headReplacing = `@@${createHash(8)}@@`;
 
-    const linksReplacing = `@@${createHash(8)}@@`;
+    const headContextValue: VNode[] = [];
+    if (resultMetadata) {
+      headContextValue.push(resultMetadata);
+    }
+
+    let headHasBeenRendered = false;
 
     const nonce = csp ? createHash(32) : undefined;
     // Finally page is wrapped within __root component (SSR Only)
     // It includes all the necessary scripts to hydrate the page
     // and it also exposes Metadata and Links render props
     let html = renderToString(
-      h(LINKS_CONTEXT.Provider, { value: linksContextValue }, [
-        h(SCRIPTS_CONTEXT.Provider, { value: scriptsContextValue }, [
-          h(Root, {
-            state: ctx.state,
-            Metadata: () => h(Fragment, null, [resultMetadata]),
-            Links: () => {
-              linksHasBeenRendered = true;
-              return h(Fragment, null, [linksReplacing]);
-            },
-            Component: () =>
-              h(
-                Fragment,
-                null,
-                [
-                  route,
-                  !pageConfig.ssrOnly && h(Scripts, { nonce }),
-                ],
-              ),
-          }),
+      h(HEAD_CONTEXT.Provider, { value: headContextValue }, [
+        h(LINKS_CONTEXT.Provider, { value: linksContextValue }, [
+          h(SCRIPTS_CONTEXT.Provider, { value: scriptsContextValue }, [
+            h(Root, {
+              state: ctx.state,
+              Head: ({ children }) => {
+                headHasBeenRendered = true;
+                return h(Fragment, null, [children, headReplacing]);
+              },
+              Component: () =>
+                h(
+                  Fragment,
+                  null,
+                  [
+                    route,
+                    !pageConfig.ssrOnly && h(Scripts, { nonce }),
+                  ],
+                ),
+            }),
+          ]),
         ]),
       ]),
     );
 
-    if (linksHasBeenRendered) {
+    if (headHasBeenRendered) {
       html = html.replace(
-        linksReplacing,
+        headReplacing,
         renderToString(
-          h(LINKS_CONTEXT.Provider, {
-            value: linksContextValue,
-          }, [
+          h(LINKS_CONTEXT.Provider, { value: linksContextValue }, [
             h(Links, null),
+            headContextValue,
           ]),
         ),
       );
