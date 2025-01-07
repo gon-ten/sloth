@@ -1,3 +1,4 @@
+import { Head } from '@sloth/core/runtime';
 import type { LayoutLoader, LayoutProps, UnknownParams } from '@sloth/core';
 import { Image } from '@sloth/core/runtime';
 import { Backdrop } from '@/🧱/Backdrop.tsx';
@@ -19,6 +20,14 @@ export const loader: LayoutLoader<Data, UnknownParams, AppState> = (
 export default function HomeLayout({ Component, data }: LayoutProps<Data>) {
   return (
     <ThemeContext.Provider value={data.theme}>
+      <Head>
+        <link
+          rel='icon'
+          href={data.theme === 'dark'
+            ? '/static/images/logo_negate.ico'
+            : '/static/images/logo.ico'}
+        />
+      </Head>
       <Backdrop />
       <div className='relative flex w-full flex-col'>
         <LayoutRow className='mt-8'>

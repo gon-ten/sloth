@@ -10,8 +10,11 @@ import * as v from '@valibot/valibot';
 import { BlogHeroImage } from '@/🧱/BlogHeroImage.tsx';
 import { LayoutRow } from '@/🧱/LayoutRow.tsx';
 import { ArrowLeft } from '../../icons/ArrowLeft.tsx';
+import { AppState } from '../../types.ts';
 
-export const metadata: GenerateMetadataFunction<Params> = ({ params }) => {
+export const metadata: GenerateMetadataFunction<Params, AppState> = (
+  { params },
+) => {
   const { metadata } = getCollectionByLang(params.lang).get(params.slug);
   return {
     title: metadata.title,
@@ -33,10 +36,6 @@ export const pageConfig = {
 type Params = InferValidateOptions<typeof pageConfig, 'params'>;
 
 export const loader: Loader<void, Params> = ({ params, ctx }) => {
-  // const db = new PGlite();
-
-  // console.log(db);
-
   const collection = getCollection('blogs/' + params.lang);
 
   if (!collection.has(params.slug)) {

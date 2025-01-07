@@ -3,7 +3,7 @@ import clsx from 'clsx';
 import type { AppState } from './types.ts';
 
 export default function Root(
-  { Links, Metadata, Component, state }: RootProps<AppState>,
+  { Component, state, Head }: RootProps<AppState>,
 ) {
   return (
     <html
@@ -13,13 +13,11 @@ export default function Root(
         state.theme === 'dark' && 'dark',
       )}
     >
-      <head>
+      <Head>
         <meta charset='UTF-8' />
         <meta name='viewport' content='width=device-width, initial-scale=1.0' />
-        <Metadata />
         <link rel='stylesheet' href='/static/styles.css' />
-        <Links />
-      </head>
+      </Head>
       <body className='h-full bg-zinc-50 dark:bg-black'>
         <Component />
       </body>

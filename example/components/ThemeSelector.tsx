@@ -8,6 +8,10 @@ import { Moon } from '../icons/Moon.tsx';
 
 export const ThemeContext = createContext<ThemeValue>('light');
 
+export const useTheme = () => {
+  return useContext(ThemeContext);
+};
+
 function saveUserPreference(value: ThemeValue | undefined) {
   if (!IS_BROWSER) {
     return;
