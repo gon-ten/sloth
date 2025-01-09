@@ -40,6 +40,7 @@ import { LAYOUT_FILE_NAME, MIDDLEWARE_FILE_NAME } from './shared/constants.ts';
 import { dirname } from '@std/path/dirname';
 import { Builder } from './plugins/index.ts';
 import { executionContext } from './server/index.ts';
+import { clientEnv, hashEnvKey } from './env.ts';
 
 export default async function (config: AppConfigDev) {
   const isBuild = Deno.args.includes('--build');
@@ -818,6 +819,7 @@ class BuildContext implements Disposable {
           ],
 
           plugins: [
+            replaceEnvPlugin(this.#fsContext),
             ...denoPlugins({
               configPath: this.#fsContext.resolvePath('deno.json'),
             }),
@@ -849,6 +851,12 @@ class BuildContext implements Disposable {
 
           define: {
             ...this.#config.esbuildConfig?.define,
+            ...clientEnv.reduce<Record<string, string>>((acc, cur) => {
+              return {
+                ...acc,
+                [`globalThis.${cur.key}`]: cur.hashedKey,
+              };
+            }, {}),
             'globalThis.BUILD_TIME': JSON.stringify(true),
           },
 
@@ -904,3 +912,54 @@ class BuildContext implements Disposable {
     }
   }
 }
+
+const replaceEnvPlugin: (fsContext: FsContext) => esbuild.Plugin = (
+  fsContext,
+) => {
+  const RE =
+    /\b(?:globalThis|self)\.(SLOTH_ENV_[a-zA-Z_$][\w$]*)|\b(?:globalThis|self)\[(["'])SLOTH_ENV_([a-zA-Z_$][\w$]*)\2\]/g;
+
+  const alreadyHashed = new Map<string, string>();
+
+  const projectRoot = fsContext.resolvePath('.');
+  return {
+    name: 'replace-env-vars',
+    setup(build) {
+      build.onLoad(
+        { filter: /\.(j|t)s(x?)$/ },
+        async (args) => {
+          if (!args.path.startsWith(projectRoot)) {
+            return null;
+          }
+
+          let contents = await Deno.readTextFile(args.path);
+
+          const matches = contents.match(RE);
+
+          if (!matches) {
+            return null;
+          }
+
+          const uniqueMatches = [...new Set(matches)];
+
+          while (uniqueMatches.length) {
+            const match = uniqueMatches.shift()!;
+            const [key] = /SLOTH_ENV_[a-zA-Z0-9_$]+/i.exec(match) ?? [];
+            if (key) {
+              if (!alreadyHashed.has(key)) {
+                alreadyHashed.set(key, await hashEnvKey(key));
+              }
+              const hashedKey = alreadyHashed.get(key)!;
+              contents = contents.replaceAll(match, `globalThis.${hashedKey}`);
+            }
+          }
+
+          return {
+            contents,
+            loader: extname(args.path).slice(1) as esbuild.Loader,
+          };
+        },
+      );
+    },
+  };
+};

@@ -35,6 +35,7 @@ import { Links, LINKS_CONTEXT, type LinksProps } from '../shared/links.ts';
 import { metadataToVnode } from './metadata.ts';
 import { executionContext } from './index.ts';
 import { HEAD_CONTEXT } from '../shared/head.ts';
+import { clientEnv } from '../env.ts';
 
 const defaultConfig: Required<Omit<PageConfig, 'allowedMethods'>> = {
   ssrOnly: false,
@@ -271,6 +272,21 @@ export async function renderRoute({
     let headHasBeenRendered = false;
 
     const nonce = csp ? createHash(32) : undefined;
+
+    const envVarsScripts = h('script', {
+      nonce,
+      dangerouslySetInnerHTML: {
+        __html: `
+          function d(n,v){Object.defineProperty(globalThis,n,{value:v,writable:0})};
+          ${
+          clientEnv.map(({ hashedKey, value }) => {
+            return `d(${JSON.stringify(hashedKey)}, ${JSON.stringify(value)});`;
+          }).join('')
+        }
+        `,
+      },
+    });
+
     // Finally page is wrapped within __root component (SSR Only)
     // It includes all the necessary scripts to hydrate the page
     // and it also exposes Metadata and Links render props
@@ -282,7 +298,11 @@ export async function renderRoute({
               state: ctx.state,
               Head: ({ children }) => {
                 headHasBeenRendered = true;
-                return h(Fragment, null, [children, headReplacing]);
+                return h(Fragment, null, [
+                  children,
+                  envVarsScripts,
+                  headReplacing,
+                ]);
               },
               Component: () =>
                 h(
