@@ -273,19 +273,25 @@ export async function renderRoute({
 
     const nonce = csp ? createHash(32) : undefined;
 
-    const envVarsScripts = h('script', {
-      nonce,
-      dangerouslySetInnerHTML: {
-        __html: `
+    // deno-lint-ignore no-explicit-any
+    let envVarsScripts: VNode<any> | null = null;
+    if (Object.keys(clientEnv).length > 0) {
+      envVarsScripts = h('script', {
+        nonce,
+        dangerouslySetInnerHTML: {
+          __html: `
           function d(n,v){Object.defineProperty(globalThis,n,{value:v,writable:0})};
           ${
-          clientEnv.map(({ hashedKey, value }) => {
-            return `d(${JSON.stringify(hashedKey)}, ${JSON.stringify(value)});`;
-          }).join('')
-        }
+            clientEnv.map(({ hashedKey, value }) => {
+              return `d(${JSON.stringify(hashedKey)}, ${
+                JSON.stringify(value)
+              });`;
+            }).join('')
+          }
         `,
-      },
-    });
+        },
+      });
+    }
 
     // Finally page is wrapped within __root component (SSR Only)
     // It includes all the necessary scripts to hydrate the page
